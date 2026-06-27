@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model ShiftType {
+  id              String   @id @default(cuid())
+  name            String
+  durationMinutes Int
+  breakMinutes    Int
+  startTime       String
+  endTime         String   @default("22:00")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  qualifications EmployeeQualification[]
+  assignments  ScheduleAssignment[]
+  staffingRules StaffingRule[]
+}
+
+model Employee {
+  id                   String   @id @default(cuid())
+  name                 String
+  contractHoursPerWeek Float
+  maxConsecutiveDays   Int      @default(6)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  qualifications EmployeeQualification[]
+  availabilities Availability[]
+  assignments  ScheduleAssignment[]
+}
+
+model EmployeeQualification {
+  id          String @id @default(cuid())
+  employeeId  String
+  shiftTypeId String
+
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shiftType ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, shiftTypeId])
+}
+
+model Availability {
+  id           String  @id @default(cuid())
+  employeeId   String
+  dayOfWeek    Int
+  available    Boolean @default(true)
+  preferredOff Boolean @default(false)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, dayOfWeek])
+}
+
+model StaffingRule {
+  id          String @id @default(cuid())
+  shiftTypeId String
+  minGuests   Int
+  maxGuests   Int?
+  staffCount  Int
+
+  shiftType ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Cascade)
+
+  @@index([shiftTypeId, minGuests])
+}
+
+model Schedule {
+  id        String   @id @default(cuid())
+  weekStart DateTime
+  status    String   @default("draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guestForecasts GuestForecast[]
+  assignments    ScheduleAssignment[]
+
+  @@unique([weekStart])
+}
+
+model GuestForecast {
+  id         String @id @default(cuid())
+  scheduleId String
+  date       DateTime
+  guestCount Int
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, date])
+}
+
+model ScheduleAssignment {
+  id          String   @id @default(cuid())
+  scheduleId  String
+  employeeId  String
+  shiftTypeId String
+  date        DateTime
+
+  schedule  Schedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  employee  Employee  @relation(fields: [employeeId], references: [id])
+  shiftType ShiftType @relation(fields: [shiftTypeId], references: [id])
+
+  @@unique([scheduleId, employeeId, date])
+  @@index([scheduleId, date])
+}

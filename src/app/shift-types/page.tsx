@@ -7,12 +7,13 @@ import {
   formatDurationHours,
   formatShiftTimeRange,
 } from "@/lib/shift-time";
-import type { ShiftType } from "@/types";
+import type { OperationalZone, ShiftType } from "@/types";
 
 const EMPTY_FORM = {
   name: "",
   startTime: "17:00",
   endTime: "01:00",
+  zoneId: "",
 };
 
 function displayEndTime(shift: ShiftType): string {
@@ -21,6 +22,7 @@ function displayEndTime(shift: ShiftType): string {
 
 export default function ShiftsPage() {
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
+  const [zones, setZones] = useState<OperationalZone[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedShiftType, setSelectedShiftType] = useState<ShiftType | null>(null);
@@ -30,18 +32,24 @@ export default function ShiftsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/shift-types");
-    if (!res.ok) {
+    const [shiftsRes, zonesRes] = await Promise.all([
+      fetch("/api/shift-types"),
+      fetch("/api/coverage-zones"),
+    ]);
+    if (!shiftsRes.ok) {
       setFormError("Nepodařilo se načíst seznam směn");
       return;
     }
-    const data: ShiftType[] = await res.json();
+    const data: ShiftType[] = await shiftsRes.json();
     setShiftTypes(
       data.map((shift) => ({
         ...shift,
         endTime: shift.endTime || displayEndTime(shift),
       })),
     );
+    if (zonesRes.ok) {
+      setZones(await zonesRes.json());
+    }
   }, []);
 
   useEffect(() => {
@@ -57,6 +65,7 @@ export default function ShiftsPage() {
       name: form.name.trim(),
       startTime: form.startTime,
       endTime: form.endTime,
+      zoneId: form.zoneId || null,
     };
 
     try {
@@ -133,6 +142,7 @@ export default function ShiftsPage() {
       name: st.name,
       startTime: st.startTime,
       endTime: displayEndTime(st),
+      zoneId: st.zoneId ?? "",
     });
   }
 
@@ -153,6 +163,21 @@ export default function ShiftsPage() {
             className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
             placeholder="Bar, Servis…"
           />
+        </label>
+        <label className="block col-span-2 sm:col-span-1">
+          <span className="text-sm font-medium text-slate-600">Provozní zóna</span>
+          <select
+            value={form.zoneId}
+            onChange={(e) => setForm({ ...form, zoneId: e.target.value })}
+            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          >
+            <option value="">— Nepřiřazeno —</option>
+            {zones.map((zone) => (
+              <option key={zone.id} value={zone.id}>
+                {zone.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="block">
           <span className="text-sm font-medium text-slate-600">Začátek směny</span>
@@ -223,6 +248,8 @@ export default function ShiftsPage() {
                   {formatShiftTimeRange(st.startTime, endTime)}
                 </p>
                 <p className="text-sm text-slate-500 mt-0.5">
+                  {st.zone?.name ? `Zóna: ${st.zone.name}` : "Zóna: nepřiřazeno"}
+                  {" · "}
                   {formatDurationHours(st.durationMinutes)}
                   {" · "}
                   pauza {st.breakMinutes} min (DE)

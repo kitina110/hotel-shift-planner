@@ -1,167 +1,108 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { type ShiftType, type StaffingRule } from "@/types";
-
-type RuleWithType = StaffingRule & { shiftType?: ShiftType };
+import { useCallback, useEffect, useState } from "react";
+import { CoverageZoneSection } from "@/components/coverage/CoverageZoneSection";
+import {
+  createCoverageZone,
+  fetchCoverageZones,
+  type CoverageZoneWithDetails,
+} from "@/lib/coverage-client";
 
 export default function StaffingRulesPage() {
-  const [rules, setRules] = useState<RuleWithType[]>([]);
-  const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
-  const [form, setForm] = useState({
-    shiftTypeId: "",
-    minGuests: 0,
-    maxGuests: "",
-    staffCount: 1,
-  });
+  const [zones, setZones] = useState<CoverageZoneWithDetails[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
 
-  async function load() {
-    const [rulesRes, typesRes] = await Promise.all([
-      fetch("/api/staffing-rules"),
-      fetch("/api/shift-types"),
-    ]);
-    setRules(await rulesRes.json());
-    const types = await typesRes.json();
-    setShiftTypes(types);
-    if (!form.shiftTypeId && types[0]) {
-      setForm((f) => ({ ...f, shiftTypeId: types[0].id }));
+  const [newZoneName, setNewZoneName] = useState("");
+  const [zoneFormError, setZoneFormError] = useState<string | null>(null);
+  const [zoneSubmitting, setZoneSubmitting] = useState(false);
+
+  const load = useCallback(async () => {
+    setPageError(null);
+    try {
+      const data = await fetchCoverageZones();
+      setZones(data);
+    } catch (err) {
+      setPageError(err instanceof Error ? err.message : "Načtení se nezdařilo");
+    } finally {
+      setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleCreateZone(e: React.FormEvent) {
     e.preventDefault();
-    await fetch("/api/staffing-rules", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        maxGuests: form.maxGuests === "" ? null : Number(form.maxGuests),
-      }),
-    });
-    setForm((f) => ({ ...f, minGuests: 0, maxGuests: "", staffCount: 1 }));
-    await load();
+    const name = newZoneName.trim();
+    if (!name) {
+      setZoneFormError("Zadejte název zóny");
+      return;
+    }
+    setZoneFormError(null);
+    setZoneSubmitting(true);
+    try {
+      await createCoverageZone(name);
+      setNewZoneName("");
+      await load();
+    } catch (err) {
+      setZoneFormError(err instanceof Error ? err.message : "Vytvoření se nezdařilo");
+    } finally {
+      setZoneSubmitting(false);
+    }
   }
-
-  async function handleDelete(id: string) {
-    await fetch(`/api/staffing-rules/${id}`, { method: "DELETE" });
-    await load();
-  }
-
-  const grouped = shiftTypes.map((st) => ({
-    shiftType: st,
-    rules: rules.filter((r) => r.shiftTypeId === st.id),
-  }));
 
   return (
-    <div className="p-8 max-w-4xl">
-      <h2 className="text-2xl font-bold text-slate-900 mb-2">Pravidla obsazenosti</h2>
+    <div className="p-8 max-w-3xl">
+      <h2 className="text-2xl font-bold text-slate-900 mb-2">Obsazenost</h2>
       <p className="text-sm text-slate-500 mb-6">
-        Počet zaměstnanců podle očekávaného počtu hostů pro každou roli.
+        Požadované pokrytí provozu podle časových intervalů a počtu hostů v jednotlivých
+        provozních zónách.
       </p>
 
       <form
-        onSubmit={handleSubmit}
-        className="rounded-xl border border-slate-200 bg-white p-5 mb-8 grid grid-cols-2 sm:grid-cols-5 gap-3 items-end"
+        onSubmit={handleCreateZone}
+        className="rounded-xl border border-slate-200 bg-white p-4 mb-8 flex flex-wrap items-end gap-3"
       >
-        <label className="block col-span-2 sm:col-span-1">
-          <span className="text-xs font-medium text-slate-600">Směna</span>
-          <select
-            value={form.shiftTypeId}
-            onChange={(e) => setForm({ ...form, shiftTypeId: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
-          >
-            {shiftTypes.map((st) => (
-              <option key={st.id} value={st.id}>
-                {st.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-xs font-medium text-slate-600">Min. hosté</span>
+        <label className="block flex-1 min-w-[200px]">
+          <span className="text-sm font-medium text-slate-600">Nová provozní zóna</span>
           <input
-            type="number"
-            min={0}
-            value={form.minGuests}
-            onChange={(e) => setForm({ ...form, minGuests: Number(e.target.value) })}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
-          />
-        </label>
-        <label className="block">
-          <span className="text-xs font-medium text-slate-600">Max. hosté</span>
-          <input
-            type="number"
-            min={0}
-            placeholder="∞"
-            value={form.maxGuests}
-            onChange={(e) => setForm({ ...form, maxGuests: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
-          />
-        </label>
-        <label className="block">
-          <span className="text-xs font-medium text-slate-600">Počet lidí</span>
-          <input
-            type="number"
-            min={1}
-            value={form.staffCount}
-            onChange={(e) => setForm({ ...form, staffCount: Number(e.target.value) })}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
+            value={newZoneName}
+            onChange={(e) => setNewZoneName(e.target.value)}
+            placeholder="např. Servis, Bar…"
+            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
           />
         </label>
         <button
           type="submit"
-          className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          disabled={zoneSubmitting}
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          Přidat
+          {zoneSubmitting ? "Vytvářím…" : "Přidat zónu"}
         </button>
+        {zoneFormError && (
+          <p className="w-full text-sm text-red-600">{zoneFormError}</p>
+        )}
       </form>
 
-      {grouped.map(({ shiftType, rules: typeRules }) => (
-        <section key={shiftType.id} className="mb-8">
-          <h3 className="text-lg font-semibold text-slate-800 mb-3">{shiftType.name}</h3>
-          <table className="w-full rounded-xl border border-slate-200 bg-white overflow-hidden text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium text-slate-600">Hosté od</th>
-                <th className="px-4 py-2 text-left font-medium text-slate-600">Hosté do</th>
-                <th className="px-4 py-2 text-left font-medium text-slate-600">Personál</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {typeRules.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-4 py-3 text-slate-400">
-                    Žádná pravidla
-                  </td>
-                </tr>
-              ) : (
-                typeRules.map((r) => (
-                  <tr key={r.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2">{r.minGuests}</td>
-                    <td className="px-4 py-2">{r.maxGuests ?? "∞"}</td>
-                    <td className="px-4 py-2 font-medium">{r.staffCount}</td>
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(r.id)}
-                        className="text-red-600 text-xs hover:underline"
-                      >
-                        Smazat
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </section>
-      ))}
+      {loading ? (
+        <p className="text-slate-500">Načítám zóny…</p>
+      ) : pageError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {pageError}
+        </div>
+      ) : zones.length === 0 ? (
+        <p className="text-slate-400">
+          Zatím nemáte žádné zóny. Vytvořte první provozní oblast výše.
+        </p>
+      ) : (
+        <div className="space-y-6">
+          {zones.map((zone) => (
+            <CoverageZoneSection key={zone.id} zone={zone} onChanged={load} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

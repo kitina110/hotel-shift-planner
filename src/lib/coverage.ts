@@ -117,9 +117,24 @@ export interface CoverageSnapshot {
 
 export type GapSeverity = "none" | "low" | "medium" | "critical";
 
+/** Reserved for future gap resolution suggestions (Etapa 7+). */
+export type GapActionType =
+  | "AddShift"
+  | "ExtendShift"
+  | "ReassignEmployee"
+  | "AdjustRequirement"
+  | "ManualReview";
+
+export interface GapAction {
+  type: GapActionType;
+  description: string;
+}
+
 export interface CoverageGap {
   snapshot: CoverageSnapshot;
   severity: GapSeverity;
+  /** Populated when recommendation engine is implemented. */
+  suggestedActions?: GapAction[];
 }
 
 // ─── Evaluation inputs (persistence-agnostic) ────────────────────────────────

@@ -114,6 +114,8 @@ export type {
   CoverageGap,
   CoveringStaffEntry,
   GapSeverity,
+  GapAction,
+  GapActionType,
   ZoneCoverageConfig,
   ShiftTemplateRef,
   AssignmentRef,

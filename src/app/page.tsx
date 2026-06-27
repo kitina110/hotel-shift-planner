@@ -4,9 +4,19 @@ import { addDays, addWeeks, format, startOfWeek, subWeeks } from "date-fns";
 import { cs } from "date-fns/locale";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScheduleDndProvider } from "@/components/ScheduleDndProvider";
+import { CoveragePanel } from "@/components/schedule/CoveragePanel";
 import { ScheduleTable } from "@/components/schedule/ScheduleTable";
 import { ScheduleToolbar } from "@/components/schedule/ScheduleToolbar";
-import type { Employee, Schedule, ShiftType } from "@/types";
+import { useScheduleCoverage } from "@/hooks/useScheduleCoverage";
+import type { CoverageZoneWithDetails } from "@/lib/coverage-client";
+import type { Employee, Schedule, ScheduleAssignment, ShiftType } from "@/types";
+
+function mapAssignmentFromApi(raw: ScheduleAssignment): ScheduleAssignment {
+  return {
+    ...raw,
+    date: typeof raw.date === "string" ? raw.date : new Date(raw.date).toISOString(),
+  };
+}
 
 export default function SchedulePage() {
   const [weekStart, setWeekStart] = useState(() =>
@@ -15,6 +25,7 @@ export default function SchedulePage() {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [zones, setZones] = useState<CoverageZoneWithDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -25,18 +36,38 @@ export default function SchedulePage() {
     [weekStart],
   );
 
+  const weekDayKeys = useMemo(
+    () => weekDays.map((day) => format(day, "yyyy-MM-dd")),
+    [weekDays],
+  );
+
+  const coverage = useScheduleCoverage({
+    weekDayKeys,
+    guestCounts,
+    schedule,
+    shiftTypes,
+    zones,
+  });
+
   const loadSchedule = useCallback(async () => {
     setLoading(true);
     try {
-      const [schedRes, typesRes, empRes] = await Promise.all([
+      const [schedRes, typesRes, empRes, zonesRes] = await Promise.all([
         fetch(`/api/schedules?week=${weekStart.toISOString()}`),
         fetch("/api/shift-types"),
         fetch("/api/employees"),
+        fetch("/api/coverage-zones"),
       ]);
       const sched = await schedRes.json();
       const types = await typesRes.json();
       const emps = await empRes.json();
-      setSchedule(sched);
+      if (zonesRes.ok) {
+        setZones(await zonesRes.json());
+      }
+      setSchedule({
+        ...sched,
+        assignments: (sched.assignments ?? []).map(mapAssignmentFromApi),
+      });
       setShiftTypes(types);
       setEmployees(emps);
       const counts: Record<string, number> = {};
@@ -73,7 +104,10 @@ export default function SchedulePage() {
         }),
       });
       const data = await res.json();
-      setSchedule(data.schedule);
+      setSchedule({
+        ...data.schedule,
+        assignments: (data.schedule.assignments ?? []).map(mapAssignmentFromApi),
+      });
       setWarnings(data.warnings ?? []);
     } finally {
       setGenerating(false);
@@ -98,7 +132,17 @@ export default function SchedulePage() {
     });
 
     if (res.ok) {
-      await loadSchedule();
+      const updated = mapAssignmentFromApi(await res.json());
+      setSchedule((prev) =>
+        prev
+          ? {
+              ...prev,
+              assignments: prev.assignments.map((a) =>
+                a.id === assignmentId ? updated : a,
+              ),
+            }
+          : prev,
+      );
     }
   }
 
@@ -162,20 +206,28 @@ export default function SchedulePage() {
       {loading ? (
         <p className="text-slate-500 py-12 text-center">Načítám rozpis…</p>
       ) : (
-        <ScheduleDndProvider onMove={handleMove}>
-          <ScheduleTable
-            weekDays={weekDays}
-            schedule={schedule}
-            employees={employees}
-            shiftTypes={shiftTypes}
-            guestCounts={guestCounts}
-            onGuestCountChange={handleGuestCountChange}
+        <>
+          <CoveragePanel
+            days={coverage.days}
+            hasConfiguredIntervals={coverage.hasConfiguredIntervals}
+            totalGaps={coverage.gaps.length}
           />
-          <p className="mt-3 text-xs text-slate-400">
-            Přetáhněte směnu pro manuální úpravu data. Sloupce Zaměstnanec a Soll Std. zůstávají
-            při scrollování připnuté.
-          </p>
-        </ScheduleDndProvider>
+
+          <ScheduleDndProvider onMove={handleMove}>
+            <ScheduleTable
+              weekDays={weekDays}
+              schedule={schedule}
+              employees={employees}
+              shiftTypes={shiftTypes}
+              guestCounts={guestCounts}
+              onGuestCountChange={handleGuestCountChange}
+            />
+            <p className="mt-3 text-xs text-slate-400">
+              Přetáhněte směnu pro manuální úpravu data. Sloupce Zaměstnanec a Soll Std.
+              zůstávají při scrollování připnuté.
+            </p>
+          </ScheduleDndProvider>
+        </>
       )}
     </div>
   );

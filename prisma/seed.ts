@@ -23,10 +23,33 @@ async function main() {
   await prisma.guestForecast.deleteMany();
   await prisma.schedule.deleteMany();
   await prisma.staffingRule.deleteMany();
+  await prisma.coverageRequirementRule.deleteMany();
+  await prisma.coverageInterval.deleteMany();
+  await prisma.employeeZoneQualification.deleteMany();
   await prisma.availability.deleteMany();
   await prisma.employeeQualification.deleteMany();
   await prisma.employee.deleteMany();
   await prisma.shiftType.deleteMany();
+  await prisma.operationalZone.deleteMany();
+  await prisma.demandProfile.deleteMany();
+
+  const defaultProfile = await prisma.demandProfile.create({
+    data: {
+      name: "Běžný provoz",
+      description: "Standardní provoz hotelu",
+      isDefault: true,
+    },
+  });
+
+  const zoneServis = await prisma.operationalZone.create({
+    data: { name: "Servis", sortOrder: 0 },
+  });
+  const zoneBar = await prisma.operationalZone.create({
+    data: { name: "Bar", sortOrder: 1 },
+  });
+  const zoneKuchyne = await prisma.operationalZone.create({
+    data: { name: "Kuchyně", sortOrder: 2 },
+  });
 
   const barFields = computeShiftFields("17:00", "00:00");
   const bar = await prisma.shiftType.create({
@@ -34,6 +57,7 @@ async function main() {
       name: "Bar",
       startTime: "17:00",
       endTime: "00:00",
+      zoneId: zoneBar.id,
       ...barFields,
     },
   });
@@ -44,6 +68,7 @@ async function main() {
       name: "Servis",
       startTime: "17:00",
       endTime: "01:00",
+      zoneId: zoneServis.id,
       ...servisFields,
     },
   });
@@ -54,6 +79,7 @@ async function main() {
       name: "Kuchyně",
       startTime: "16:00",
       endTime: "23:00",
+      zoneId: zoneKuchyne.id,
       ...kuchynFields,
     },
   });
@@ -147,6 +173,7 @@ async function main() {
           create: Array.from({ length: 7 }, (_, d) => ({
             date: addDays(weekStart, d),
             guestCount: 60 + Math.floor(Math.random() * 80),
+            demandProfileId: defaultProfile.id,
           })),
         },
       },
@@ -196,7 +223,9 @@ async function main() {
     }
   }
 
-  console.log(`Seeded ${firstNames.length} employees, 3 shift types, 4 weeks of history.`);
+  console.log(
+    `Seeded ${firstNames.length} employees, 3 zones, 3 shift types, 4 weeks of history.`,
+  );
 }
 
 main()

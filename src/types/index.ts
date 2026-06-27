@@ -1,3 +1,36 @@
+export interface OperationalZone {
+  id: string;
+  name: string;
+  sortOrder: number;
+  intervals?: CoverageInterval[];
+}
+
+export interface CoverageInterval {
+  id: string;
+  zoneId: string;
+  label?: string | null;
+  startTime: string;
+  endTime: string;
+  sortOrder: number;
+  rules?: CoverageRequirementRule[];
+  zone?: OperationalZone;
+}
+
+export interface CoverageRequirementRule {
+  id: string;
+  intervalId: string;
+  minGuests: number;
+  maxGuests: number | null;
+  staffCount: number;
+}
+
+export interface DemandProfile {
+  id: string;
+  name: string;
+  description?: string | null;
+  isDefault: boolean;
+}
+
 export interface ShiftType {
   id: string;
   name: string;
@@ -5,6 +38,8 @@ export interface ShiftType {
   breakMinutes: number;
   startTime: string;
   endTime: string;
+  zoneId?: string | null;
+  zone?: OperationalZone;
   staffingRules?: StaffingRule[];
 }
 
@@ -37,6 +72,9 @@ export interface GuestForecast {
   id: string;
   date: string;
   guestCount: number;
+  demandProfileId?: string | null;
+  notes?: string | null;
+  demandProfile?: DemandProfile;
 }
 
 export interface ScheduleAssignment {
@@ -69,6 +107,18 @@ export interface WorkloadEntry {
   totalHours: number;
   weeksWorked: number;
 }
+
+export type {
+  CoverageTarget,
+  CoverageSnapshot,
+  CoverageGap,
+  CoveringStaffEntry,
+  GapSeverity,
+  ZoneCoverageConfig,
+  ShiftTemplateRef,
+  AssignmentRef,
+  DayCoverageInput,
+} from "@/lib/coverage";
 
 export const DAY_LABELS = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
 

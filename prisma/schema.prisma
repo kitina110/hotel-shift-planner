@@ -7,6 +7,61 @@ datasource db {
   provider = "sqlite"
 }
 
+// ─── Provozní pokrytí (jádro domény) ───────────────────────────────────────
+
+model OperationalZone {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  intervals          CoverageInterval[]
+  shiftTypes         ShiftType[]
+  zoneQualifications EmployeeZoneQualification[]
+}
+
+model CoverageInterval {
+  id        String  @id @default(cuid())
+  zoneId    String
+  label     String?
+  startTime String
+  endTime   String
+  sortOrder Int     @default(0)
+
+  zone  OperationalZone           @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  rules CoverageRequirementRule[]
+
+  @@index([zoneId, sortOrder])
+}
+
+model CoverageRequirementRule {
+  id         String @id @default(cuid())
+  intervalId String
+  minGuests  Int
+  maxGuests  Int?
+  staffCount Int
+
+  interval CoverageInterval @relation(fields: [intervalId], references: [id], onDelete: Cascade)
+
+  @@index([intervalId, minGuests])
+}
+
+// ─── Provozní kontext (profil poptávky) ────────────────────────────────────
+
+model DemandProfile {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  guestForecasts GuestForecast[]
+}
+
+// ─── Směny (prostředek pokrytí) ────────────────────────────────────────────
+
 model ShiftType {
   id              String   @id @default(cuid())
   name            String
@@ -14,13 +69,17 @@ model ShiftType {
   breakMinutes    Int
   startTime       String
   endTime         String   @default("22:00")
+  zoneId          String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  qualifications EmployeeQualification[]
-  assignments  ScheduleAssignment[]
-  staffingRules StaffingRule[]
+  zone            OperationalZone?        @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  qualifications  EmployeeQualification[]
+  assignments     ScheduleAssignment[]
+  staffingRules   StaffingRule[]
 }
+
+// ─── Zaměstnanci ───────────────────────────────────────────────────────────
 
 model Employee {
   id                   String   @id @default(cuid())
@@ -30,9 +89,10 @@ model Employee {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  qualifications EmployeeQualification[]
-  availabilities Availability[]
-  assignments  ScheduleAssignment[]
+  qualifications     EmployeeQualification[]
+  zoneQualifications EmployeeZoneQualification[]
+  availabilities     Availability[]
+  assignments        ScheduleAssignment[]
 }
 
 model EmployeeQualification {
@@ -44,6 +104,18 @@ model EmployeeQualification {
   shiftType ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, shiftTypeId])
+}
+
+/// Připraveno pro budoucí kvalifikaci podle zóny (zatím nevyužito v logice).
+model EmployeeZoneQualification {
+  id         String @id @default(cuid())
+  employeeId String
+  zoneId     String
+
+  employee Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  zone     OperationalZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, zoneId])
 }
 
 model Availability {
@@ -58,6 +130,8 @@ model Availability {
   @@unique([employeeId, dayOfWeek])
 }
 
+// ─── Legacy: pravidla obsazenosti vázaná na směnu (odstranění v etapě 7) ───
+
 model StaffingRule {
   id          String @id @default(cuid())
   shiftTypeId String
@@ -69,6 +143,8 @@ model StaffingRule {
 
   @@index([shiftTypeId, minGuests])
 }
+
+// ─── Týdenní plán ─────────────────────────────────────────────────────────
 
 model Schedule {
   id        String   @id @default(cuid())
@@ -84,12 +160,15 @@ model Schedule {
 }
 
 model GuestForecast {
-  id         String @id @default(cuid())
-  scheduleId String
-  date       DateTime
-  guestCount Int
+  id              String  @id @default(cuid())
+  scheduleId      String
+  date            DateTime
+  guestCount      Int
+  demandProfileId String?
+  notes           String?
 
-  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  schedule      Schedule       @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  demandProfile DemandProfile? @relation(fields: [demandProfileId], references: [id], onDelete: SetNull)
 
   @@unique([scheduleId, date])
 }

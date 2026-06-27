@@ -12,11 +12,19 @@ export interface ShiftTypeZoneRef {
 
 export interface EmployeeWithQualifications {
   id: string;
-  qualifications: { shiftTypeId: string }[];
+  qualifications?: { shiftTypeId: string }[];
+  qualifiedShiftTypeIds?: string[];
   zoneQualifications?: { zoneId: string }[];
 }
 
 const USE_ZONE_QUALIFICATION = false;
+
+function employeeShiftTypeIds(employee: EmployeeWithQualifications): string[] {
+  if (employee.qualifiedShiftTypeIds?.length) {
+    return employee.qualifiedShiftTypeIds;
+  }
+  return employee.qualifications?.map((q) => q.shiftTypeId) ?? [];
+}
 
 export function getShiftTypeIdsForZone(
   zoneId: string,
@@ -37,7 +45,7 @@ export function isQualifiedForZone(
   const zoneShiftTypeIds = new Set(getShiftTypeIdsForZone(zoneId, shiftTypes));
   if (zoneShiftTypeIds.size === 0) return false;
 
-  return employee.qualifications.some((q) => zoneShiftTypeIds.has(q.shiftTypeId));
+  return employeeShiftTypeIds(employee).some((id) => zoneShiftTypeIds.has(id));
 }
 
 export function getQualifiedShiftTypeIdsForZone(
@@ -48,9 +56,7 @@ export function getQualifiedShiftTypeIdsForZone(
   if (!isQualifiedForZone(employee, zoneId, shiftTypes)) return [];
 
   const zoneShiftTypeIds = new Set(getShiftTypeIdsForZone(zoneId, shiftTypes));
-  return employee.qualifications
-    .map((q) => q.shiftTypeId)
-    .filter((id) => zoneShiftTypeIds.has(id));
+  return employeeShiftTypeIds(employee).filter((id) => zoneShiftTypeIds.has(id));
 }
 
 export function filterEmployeesQualifiedForZone<T extends EmployeeWithQualifications>(

@@ -129,7 +129,7 @@ export interface ZoneCoverageConfig {
   name: string;
   intervals: Array<
     Pick<CoverageInterval, "id" | "startTime" | "endTime" | "label"> & {
-      rules?: CoverageRequirementRule[];
+      rules?: Pick<CoverageRequirementRule, "minGuests" | "maxGuests" | "staffCount">[];
     }
   >;
 }

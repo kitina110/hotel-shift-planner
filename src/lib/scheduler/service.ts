@@ -9,6 +9,8 @@ import {
   type HistoricalAssignment,
   type SchedulerInput,
 } from "@/lib/scheduler";
+import { endTimeFromStartAndDuration } from "@/lib/shift-time";
+import { zoneInclude } from "@/lib/coverage-api";
 import { prisma } from "@/lib/db";
 
 export async function loadSchedulerInput(
@@ -42,12 +44,15 @@ export async function loadSchedulerInput(
     });
   }
 
-  const [shiftTypes, employees, staffingRules] = await Promise.all([
+  const [shiftTypes, employees, staffingRules, operationalZones] = await Promise.all([
     prisma.shiftType.findMany(),
     prisma.employee.findMany({
       include: { qualifications: true, availabilities: true },
     }),
     prisma.staffingRule.findMany(),
+    prisma.operationalZone.findMany({
+      include: zoneInclude,
+    }),
   ]);
 
   const historyStart = subWeeks(normalizedWeek, 8);
@@ -74,6 +79,11 @@ export async function loadSchedulerInput(
       name: s.name,
       durationMinutes: s.durationMinutes,
       startTime: s.startTime,
+      endTime:
+        s.endTime && s.endTime.length > 0
+          ? s.endTime
+          : endTimeFromStartAndDuration(s.startTime, s.durationMinutes),
+      zoneId: s.zoneId,
     })),
     employees: employees.map((e) => ({
       id: e.id,
@@ -93,6 +103,21 @@ export async function loadSchedulerInput(
       minGuests: r.minGuests,
       maxGuests: r.maxGuests,
       staffCount: r.staffCount,
+    })),
+    coverageZones: operationalZones.map((zone) => ({
+      id: zone.id,
+      name: zone.name,
+      intervals: zone.intervals.map((interval) => ({
+        id: interval.id,
+        startTime: interval.startTime,
+        endTime: interval.endTime,
+        label: interval.label,
+        rules: interval.rules.map((rule) => ({
+          minGuests: rule.minGuests,
+          maxGuests: rule.maxGuests,
+          staffCount: rule.staffCount,
+        })),
+      })),
     })),
     guestForecasts: schedule.guestForecasts.map((f) => ({
       date: f.date,

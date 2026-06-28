@@ -30,7 +30,6 @@ export default function SchedulePage() {
   const [zones, setZones] = useState<CoverageZoneWithDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [warnings, setWarnings] = useState<string[]>([]);
   const [guestCounts, setGuestCounts] = useState<Record<string, number>>({});
   const [activeAlert, setActiveAlert] = useState<CoverageAlert | null>(null);
 
@@ -112,7 +111,6 @@ export default function SchedulePage() {
 
   async function handleGenerate() {
     setGenerating(true);
-    setWarnings([]);
     try {
       const res = await fetch("/api/schedules", {
         method: "POST",
@@ -130,7 +128,6 @@ export default function SchedulePage() {
         ...data.schedule,
         assignments: (data.schedule.assignments ?? []).map(mapAssignmentFromApi),
       });
-      setWarnings(data.warnings ?? []);
     } finally {
       setGenerating(false);
     }
@@ -271,17 +268,6 @@ export default function SchedulePage() {
           </button>
         </div>
       </header>
-
-      {warnings.length > 0 && (
-        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2">
-          <p className="text-xs font-medium text-amber-800">Upozornění při generování:</p>
-          <ul className="mt-0.5 text-xs text-amber-700 list-disc list-inside">
-            {warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {loading ? (
         <p className="text-slate-500 py-12 text-center">Načítám rozpis…</p>

@@ -53,7 +53,11 @@ export async function PUT(request: Request, { params }: Params) {
         maxConsecutiveDays: Number(maxConsecutiveDays),
       }),
     },
-    include: { qualifications: true, availabilities: true },
+    include: {
+      qualifications: true,
+      availabilities: true,
+      defaultAvailabilityTemplate: true,
+    },
   });
 
   return NextResponse.json(employee);

@@ -79,20 +79,38 @@ model ShiftType {
   staffingRules   StaffingRule[]
 }
 
-// ─── Zaměstnanci ───────────────────────────────────────────────────────────
+// ─── Zaměstnanci (Employee 2.0) ────────────────────────────────────────────
+
+enum AvailabilityStatus {
+  AVAILABLE
+  PREFERRED_OFF
+  UNAVAILABLE
+  VACATION
+  SICK
+}
 
 model Employee {
-  id                   String   @id @default(cuid())
-  name                 String
-  contractHoursPerWeek Float
-  maxConsecutiveDays   Int      @default(6)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                             String   @id @default(cuid())
+  name                           String
+  sortOrder                      Int      @default(0)
+  isActive                       Boolean  @default(true)
+  contractHoursPerWeek           Float
+  isTemporaryHelp                Boolean  @default(false)
+  useDefaultAvailabilityTemplate Boolean  @default(false)
+  /// Rezervováno — v1 se nezobrazuje v UI ani v generátoru.
+  maxConsecutiveDays             Int      @default(6)
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
 
-  qualifications     EmployeeQualification[]
-  zoneQualifications EmployeeZoneQualification[]
-  availabilities     Availability[]
-  assignments        ScheduleAssignment[]
+  qualifications              EmployeeQualification[]
+  zoneQualifications          EmployeeZoneQualification[]
+  defaultAvailabilityTemplate EmployeeDefaultAvailability[]
+  weeklyAvailabilities        EmployeeWeeklyAvailability[]
+  /// @deprecated Odstranění v E8 — dočasně pro zpětnou kompatibilitu.
+  availabilities              Availability[]
+  assignments                 ScheduleAssignment[]
+
+  @@index([sortOrder])
 }
 
 model EmployeeQualification {
@@ -106,7 +124,7 @@ model EmployeeQualification {
   @@unique([employeeId, shiftTypeId])
 }
 
-/// Připraveno pro budoucí kvalifikaci podle zóny (zatím nevyužito v logice).
+/// @deprecated Odstranění v E8 — nahrazeno kvalifikací na úrovni směny.
 model EmployeeZoneQualification {
   id         String @id @default(cuid())
   employeeId String
@@ -118,6 +136,34 @@ model EmployeeZoneQualification {
   @@unique([employeeId, zoneId])
 }
 
+/// Výchozí týdenní šablona dostupnosti (dlouhodobá, volitelná).
+model EmployeeDefaultAvailability {
+  id         String             @id @default(cuid())
+  employeeId String
+  dayOfWeek  Int
+  status     AvailabilityStatus @default(AVAILABLE)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, dayOfWeek])
+}
+
+/// Týdenní dostupnost vázaná na konkrétní rozpis (Schedule).
+model EmployeeWeeklyAvailability {
+  id         String             @id @default(cuid())
+  scheduleId String
+  employeeId String
+  date       DateTime
+  status     AvailabilityStatus @default(AVAILABLE)
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, employeeId, date])
+  @@index([scheduleId, date])
+}
+
+/// @deprecated Odstranění v E8 — nahrazeno EmployeeDefaultAvailability + EmployeeWeeklyAvailability.
 model Availability {
   id           String  @id @default(cuid())
   employeeId   String
@@ -153,8 +199,9 @@ model Schedule {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  guestForecasts GuestForecast[]
-  assignments    ScheduleAssignment[]
+  guestForecasts       GuestForecast[]
+  assignments          ScheduleAssignment[]
+  weeklyAvailabilities EmployeeWeeklyAvailability[]
 
   @@unique([weekStart])
 }

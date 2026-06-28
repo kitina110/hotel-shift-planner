@@ -1,6 +1,5 @@
 import "dotenv/config";
 import path from "node:path";
-import { addDays, startOfWeek, subWeeks } from "date-fns";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { computeShiftFields } from "../src/lib/shift-time";
@@ -18,13 +17,21 @@ function resolveDatabaseUrl(): string {
 const adapter = new PrismaBetterSqlite3({ url: resolveDatabaseUrl() });
 const prisma = new PrismaClient({ adapter });
 
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+
+function defaultAvailabilityCreate(status: "AVAILABLE" | "PREFERRED_OFF" | "UNAVAILABLE" = "AVAILABLE") {
+  return ALL_DAYS.map((dayOfWeek) => ({ dayOfWeek, status }));
+}
+
 async function main() {
+  await prisma.employeeWeeklyAvailability.deleteMany();
   await prisma.scheduleAssignment.deleteMany();
   await prisma.guestForecast.deleteMany();
   await prisma.schedule.deleteMany();
   await prisma.staffingRule.deleteMany();
   await prisma.coverageRequirementRule.deleteMany();
   await prisma.coverageInterval.deleteMany();
+  await prisma.employeeDefaultAvailability.deleteMany();
   await prisma.employeeZoneQualification.deleteMany();
   await prisma.availability.deleteMany();
   await prisma.employeeQualification.deleteMany();
@@ -33,7 +40,7 @@ async function main() {
   await prisma.operationalZone.deleteMany();
   await prisma.demandProfile.deleteMany();
 
-  const defaultProfile = await prisma.demandProfile.create({
+  await prisma.demandProfile.create({
     data: {
       name: "Běžný provoz",
       description: "Standardní provoz hotelu",
@@ -51,42 +58,49 @@ async function main() {
     data: { name: "Kuchyně", sortOrder: 2 },
   });
 
-  const barFields = computeShiftFields("17:00", "00:00");
-  const bar = await prisma.shiftType.create({
+  const servis1317 = await prisma.shiftType.create({
     data: {
-      name: "Bar",
-      startTime: "17:00",
-      endTime: "00:00",
-      zoneId: zoneBar.id,
-      ...barFields,
-    },
-  });
-
-  const servisFields = computeShiftFields("17:00", "01:00");
-  const servis = await prisma.shiftType.create({
-    data: {
-      name: "Servis",
-      startTime: "17:00",
-      endTime: "01:00",
+      name: "Servis 13:00–17:00",
+      startTime: "13:00",
+      endTime: "17:00",
       zoneId: zoneServis.id,
-      ...servisFields,
+      ...computeShiftFields("13:00", "17:00"),
     },
   });
 
-  const kuchynFields = computeShiftFields("16:00", "23:00");
+  const servis1722 = await prisma.shiftType.create({
+    data: {
+      name: "Servis 17:00–22:00",
+      startTime: "17:00",
+      endTime: "22:00",
+      zoneId: zoneServis.id,
+      ...computeShiftFields("17:00", "22:00"),
+    },
+  });
+
+  const bar2002 = await prisma.shiftType.create({
+    data: {
+      name: "Bar 20:00–02:00",
+      startTime: "20:00",
+      endTime: "02:00",
+      zoneId: zoneBar.id,
+      ...computeShiftFields("20:00", "02:00"),
+    },
+  });
+
   const kuchyn = await prisma.shiftType.create({
     data: {
       name: "Kuchyně",
       startTime: "16:00",
       endTime: "23:00",
       zoneId: zoneKuchyne.id,
-      ...kuchynFields,
+      ...computeShiftFields("16:00", "23:00"),
     },
   });
 
   for (const [shiftTypeId, rules] of [
     [
-      bar.id,
+      bar2002.id,
       [
         { minGuests: 0, maxGuests: 50, staffCount: 1 },
         { minGuests: 51, maxGuests: 100, staffCount: 2 },
@@ -94,7 +108,7 @@ async function main() {
       ],
     ],
     [
-      servis.id,
+      servis1722.id,
       [
         { minGuests: 0, maxGuests: 40, staffCount: 2 },
         { minGuests: 41, maxGuests: 80, staffCount: 4 },
@@ -116,115 +130,58 @@ async function main() {
     }
   }
 
-  const firstNames = [
-    "Anna", "Ben", "Clara", "David", "Eva", "Felix", "Greta", "Hans",
-    "Ines", "Jonas", "Klara", "Lukas", "Mia", "Noah", "Olga", "Paul",
-    "Rosa", "Stefan", "Tina", "Uwe", "Vera", "Wolf", "Xenia", "Yann",
-    "Zara", "Amelie", "Bruno", "Carla", "Dennis", "Emma", "Florian",
-    "Gisela", "Henrik", "Iris", "Jan", "Katrin", "Leon", "Monika",
-    "Nils", "Petra", "Quentin", "Rita", "Simon", "Theresa", "Ulrich",
-    "Vanessa", "Werner", "Yvonne", "Zoe", "Adrian", "Bianca", "Chris",
-    "Diana", "Erik", "Franz", "Helena", "Ivan", "Julia",
-  ];
+  const demoEmployees = [
+    {
+      name: "Jan Novák",
+      sortOrder: 0,
+      contractHoursPerWeek: 40,
+      isTemporaryHelp: false,
+      shiftTypeIds: [servis1317.id, servis1722.id, bar2002.id],
+    },
+    {
+      name: "Petra Svobodová",
+      sortOrder: 1,
+      contractHoursPerWeek: 30,
+      isTemporaryHelp: false,
+      shiftTypeIds: [servis1722.id],
+    },
+    {
+      name: "Martin Dvořák",
+      sortOrder: 2,
+      contractHoursPerWeek: 20,
+      isTemporaryHelp: true,
+      shiftTypeIds: [bar2002.id, kuchyn.id],
+    },
+  ] as const;
 
-  const contracts = [40, 40, 30, 30, 20, 20, 40, 30];
-
-  for (let i = 0; i < firstNames.length; i++) {
-    const name = `${firstNames[i]} ${String.fromCharCode(65 + (i % 26))}.`;
-    const contractHoursPerWeek = contracts[i % contracts.length];
-
-    const canBar = i % 3 !== 0;
-    const canServis = i % 2 === 0;
-    const canKuchyn = i % 4 !== 0;
-
-    const quals: string[] = [];
-    if (canBar) quals.push(bar.id);
-    if (canServis) quals.push(servis.id);
-    if (canKuchyn) quals.push(kuchyn.id);
-    if (quals.length === 0) quals.push(servis.id);
-
+  for (const demo of demoEmployees) {
     await prisma.employee.create({
       data: {
-        name,
-        contractHoursPerWeek,
-        maxConsecutiveDays: 6,
+        name: demo.name,
+        sortOrder: demo.sortOrder,
+        contractHoursPerWeek: demo.contractHoursPerWeek,
+        isTemporaryHelp: demo.isTemporaryHelp,
+        isActive: true,
+        useDefaultAvailabilityTemplate: true,
         qualifications: {
-          create: quals.map((shiftTypeId) => ({ shiftTypeId })),
+          create: demo.shiftTypeIds.map((shiftTypeId) => ({ shiftTypeId })),
+        },
+        defaultAvailabilityTemplate: {
+          create: defaultAvailabilityCreate(),
         },
         availabilities: {
-          create: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+          create: ALL_DAYS.map((dayOfWeek) => ({
             dayOfWeek,
-            available: Math.random() > 0.15,
-            preferredOff: dayOfWeek === 0 || (dayOfWeek === 6 && i % 3 === 0),
+            available: true,
+            preferredOff: false,
           })),
         },
       },
     });
-  }
-
-  const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
-  for (let w = 1; w <= 4; w++) {
-    const weekStart = subWeeks(thisWeek, w);
-    const schedule = await prisma.schedule.create({
-      data: {
-        weekStart,
-        status: "published",
-        guestForecasts: {
-          create: Array.from({ length: 7 }, (_, d) => ({
-            date: addDays(weekStart, d),
-            guestCount: 60 + Math.floor(Math.random() * 80),
-            demandProfileId: defaultProfile.id,
-          })),
-        },
-      },
-    });
-
-    const employees = await prisma.employee.findMany({
-      include: { qualifications: true },
-    });
-
-    for (let d = 0; d < 7; d++) {
-      const date = addDays(weekStart, d);
-      const guestCount = 60 + Math.floor(Math.random() * 80);
-      const shuffled = [...employees].sort(() => Math.random() - 0.5);
-      const assigned = new Set<string>();
-
-      for (const shiftType of [bar, servis, kuchyn]) {
-        const rules = await prisma.staffingRule.findMany({
-          where: { shiftTypeId: shiftType.id },
-        });
-        const rule = rules
-          .filter(
-            (r) =>
-              guestCount >= r.minGuests &&
-              (r.maxGuests === null || guestCount <= r.maxGuests),
-          )
-          .sort((a, b) => b.minGuests - a.minGuests)[0];
-        const count = rule?.staffCount ?? 1;
-
-        let filled = 0;
-        for (const emp of shuffled) {
-          if (filled >= count) break;
-          if (assigned.has(emp.id)) continue;
-          if (!emp.qualifications.some((q) => q.shiftTypeId === shiftType.id))
-            continue;
-          assigned.add(emp.id);
-          await prisma.scheduleAssignment.create({
-            data: {
-              scheduleId: schedule.id,
-              employeeId: emp.id,
-              shiftTypeId: shiftType.id,
-              date,
-            },
-          });
-          filled++;
-        }
-      }
-    }
   }
 
   console.log(
-    `Seeded ${firstNames.length} employees, 3 zones, 3 shift types, 4 weeks of history.`,
+    "Seeded 3 demo employees, 4 shift types, 3 zones (Employee 2.0 baseline).",
   );
 }
 

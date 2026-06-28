@@ -52,6 +52,19 @@ export interface StaffingRule {
   shiftType?: ShiftType;
 }
 
+export type AvailabilityStatus =
+  | "AVAILABLE"
+  | "PREFERRED_OFF"
+  | "UNAVAILABLE"
+  | "VACATION"
+  | "SICK";
+
+export interface EmployeeDefaultAvailability {
+  id: string;
+  dayOfWeek: number;
+  status: AvailabilityStatus;
+}
+
 export interface Availability {
   id: string;
   dayOfWeek: number;
@@ -62,10 +75,17 @@ export interface Availability {
 export interface Employee {
   id: string;
   name: string;
+  sortOrder: number;
+  isActive: boolean;
   contractHoursPerWeek: number;
+  isTemporaryHelp: boolean;
+  useDefaultAvailabilityTemplate: boolean;
+  /** Rezervováno — v1 se nezobrazuje v UI ani v generátoru. */
   maxConsecutiveDays: number;
   qualifications: { shiftTypeId: string }[];
+  /** @deprecated E8 — dočasně pro zpětnou kompatibilitu */
   availabilities: Availability[];
+  defaultAvailabilityTemplate?: EmployeeDefaultAvailability[];
 }
 
 export interface GuestForecast {

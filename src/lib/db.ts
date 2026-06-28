@@ -4,7 +4,7 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "@/generated/prisma/client";
 
 /** Bump when Prisma schema changes to invalidate cached client in dev. */
-const PRISMA_SCHEMA_VERSION = "20260627154300_operational_coverage";
+const PRISMA_SCHEMA_VERSION = "20260628161046_employee_2_e1";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;

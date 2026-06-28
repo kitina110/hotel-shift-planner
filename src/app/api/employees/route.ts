@@ -3,8 +3,12 @@ import { prisma } from "@/lib/db";
 
 export async function GET() {
   const employees = await prisma.employee.findMany({
-    include: { qualifications: true, availabilities: true },
-    orderBy: { name: "asc" },
+    include: {
+      qualifications: true,
+      availabilities: true,
+      defaultAvailabilityTemplate: true,
+    },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
   return NextResponse.json(employees);
 }
@@ -28,8 +32,21 @@ export async function POST(request: Request) {
       name,
       contractHoursPerWeek: Number(contractHoursPerWeek),
       maxConsecutiveDays: Number(maxConsecutiveDays),
+      sortOrder:
+        body.sortOrder != null
+          ? Number(body.sortOrder)
+          : await prisma.employee.count(),
+      isActive: body.isActive !== false,
+      isTemporaryHelp: Boolean(body.isTemporaryHelp),
+      useDefaultAvailabilityTemplate: Boolean(body.useDefaultAvailabilityTemplate),
       qualifications: {
         create: shiftTypeIds.map((shiftTypeId: string) => ({ shiftTypeId })),
+      },
+      defaultAvailabilityTemplate: {
+        create: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+          dayOfWeek,
+          status: "AVAILABLE" as const,
+        })),
       },
       availabilities: {
         create:
@@ -42,7 +59,11 @@ export async function POST(request: Request) {
               })),
       },
     },
-    include: { qualifications: true, availabilities: true },
+    include: {
+      qualifications: true,
+      availabilities: true,
+      defaultAvailabilityTemplate: true,
+    },
   });
 
   return NextResponse.json(employee, { status: 201 });

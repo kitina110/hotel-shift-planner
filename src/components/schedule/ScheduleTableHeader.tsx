@@ -1,13 +1,20 @@
 "use client";
 
 import { format } from "date-fns";
-import { formatDayHeader, stickyEmployeeClass, stickySollClass, workedColClass } from "./schedule-utils";
+import {
+  formatDayHeader,
+  highlightDayClass,
+  stickyEmployeeClass,
+  stickySollClass,
+  workedColClass,
+} from "./schedule-utils";
 
 interface ScheduleTableHeaderProps {
   weekDays: Date[];
   guestCounts: Record<string, number>;
   onGuestCountChange: (dayKey: string, value: number) => void;
   stickySollLeft: number;
+  highlightedDate: string | null;
 }
 
 export function ScheduleTableHeader({
@@ -15,6 +22,7 @@ export function ScheduleTableHeader({
   guestCounts,
   onGuestCountChange,
   stickySollLeft,
+  highlightedDate,
 }: ScheduleTableHeaderProps) {
   return (
     <thead className="sticky top-0 z-20 bg-white">
@@ -31,11 +39,17 @@ export function ScheduleTableHeader({
           Soll Std.
         </th>
         {weekDays.map((day) => {
+          const key = format(day, "yyyy-MM-dd");
           const { weekday, dateLabel } = formatDayHeader(day);
+          const isHighlighted = highlightedDate === key;
+
           return (
             <th
               key={day.toISOString()}
-              className="px-2 py-3 text-center text-xs font-semibold text-slate-600 bg-slate-50/90 min-w-[128px]"
+              data-day-key={key}
+              className={`px-2 py-3 text-center text-xs font-semibold text-slate-600 min-w-[128px] ${
+                isHighlighted ? highlightDayClass : "bg-slate-50/90"
+              }`}
             >
               <div className="capitalize text-slate-800">{weekday}</div>
               <div className="mt-0.5 font-normal text-slate-400">{dateLabel}</div>
@@ -60,8 +74,13 @@ export function ScheduleTableHeader({
         />
         {weekDays.map((day) => {
           const key = format(day, "yyyy-MM-dd");
+          const isHighlighted = highlightedDate === key;
+
           return (
-            <th key={`guest-${key}`} className="px-2 py-2 bg-white font-normal">
+            <th
+              key={`guest-${key}`}
+              className={`px-2 py-2 font-normal ${isHighlighted ? highlightDayClass : "bg-white"}`}
+            >
               <input
                 type="number"
                 min={0}

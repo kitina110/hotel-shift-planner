@@ -4,10 +4,12 @@ import { addDays, addWeeks, format, startOfWeek, subWeeks } from "date-fns";
 import { cs } from "date-fns/locale";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScheduleDndProvider } from "@/components/ScheduleDndProvider";
-import { CoveragePanel } from "@/components/schedule/CoveragePanel";
+import { CoverageAlertsPanel } from "@/components/schedule/CoverageAlertsPanel";
 import { ScheduleTable } from "@/components/schedule/ScheduleTable";
-import { ScheduleToolbar } from "@/components/schedule/ScheduleToolbar";
+import { useEmployeeRowOrder } from "@/hooks/useEmployeeRowOrder";
 import { useScheduleCoverage } from "@/hooks/useScheduleCoverage";
+import { gapsToCoverageAlerts } from "@/lib/coverage/coverage-alerts";
+import type { CoverageAlert } from "@/lib/coverage/coverage-alerts";
 import type { CoverageZoneWithDetails } from "@/lib/coverage-client";
 import type { Employee, Schedule, ScheduleAssignment, ShiftType } from "@/types";
 
@@ -30,6 +32,15 @@ export default function SchedulePage() {
   const [generating, setGenerating] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [guestCounts, setGuestCounts] = useState<Record<string, number>>({});
+  const [activeAlert, setActiveAlert] = useState<CoverageAlert | null>(null);
+
+  const {
+    orderIds,
+    isEditOrderMode,
+    startEditOrder,
+    finishEditOrder,
+    reorderEmployees,
+  } = useEmployeeRowOrder(employees);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -48,6 +59,11 @@ export default function SchedulePage() {
     shiftTypes,
     zones,
   });
+
+  const alerts = useMemo(
+    () => gapsToCoverageAlerts(coverage.gaps),
+    [coverage.gaps],
+  );
 
   const loadSchedule = useCallback(async () => {
     setLoading(true);
@@ -87,6 +103,12 @@ export default function SchedulePage() {
   useEffect(() => {
     loadSchedule();
   }, [loadSchedule]);
+
+  useEffect(() => {
+    if (activeAlert && !alerts.some((alert) => alert.id === activeAlert.id)) {
+      setActiveAlert(null);
+    }
+  }, [alerts, activeAlert]);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -160,9 +182,17 @@ export default function SchedulePage() {
     setGuestCounts((prev) => ({ ...prev, [dayKey]: value }));
   }
 
+  function handleSelectAlert(alert: CoverageAlert | null) {
+    setActiveAlert(alert);
+  }
+
+  const employeeOrderIds = orderIds;
+
+  const shiftDnDEnabled = !isEditOrderMode;
+
   return (
     <div className="min-w-[1440px] p-6 lg:p-8">
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <header className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Týdenní rozpis</h2>
           <p className="mt-1 text-sm text-slate-500">
@@ -170,7 +200,54 @@ export default function SchedulePage() {
             {format(addDays(weekStart, 6), "d. MMMM yyyy", { locale: cs })}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={generating}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            {generating ? "Generuji…" : "Vygenerovat rozpis"}
+          </button>
+
+          {schedule?.status === "draft" && (
+            <button
+              type="button"
+              onClick={handlePublish}
+              className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+            >
+              Publikovat
+            </button>
+          )}
+
+          {schedule?.status === "published" && (
+            <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-medium text-emerald-700">
+              Publikováno
+            </span>
+          )}
+
+          {isEditOrderMode ? (
+            <button
+              type="button"
+              onClick={finishEditOrder}
+              className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+            >
+              ✓ Hotovo — pořadí
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={startEditOrder}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+              title="Upravit pořadí zaměstnanců"
+            >
+              ✏️ Pořadí
+            </button>
+          )}
+
+          <span className="hidden sm:inline w-px h-6 bg-slate-200 mx-1" aria-hidden />
+
           <button
             type="button"
             onClick={() => setWeekStart(subWeeks(weekStart, 1))}
@@ -195,25 +272,34 @@ export default function SchedulePage() {
         </div>
       </header>
 
-      <ScheduleToolbar
-        generating={generating}
-        scheduleStatus={schedule?.status}
-        warnings={warnings}
-        onGenerate={handleGenerate}
-        onPublish={handlePublish}
-      />
+      {warnings.length > 0 && (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2">
+          <p className="text-xs font-medium text-amber-800">Upozornění při generování:</p>
+          <ul className="mt-0.5 text-xs text-amber-700 list-disc list-inside">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-slate-500 py-12 text-center">Načítám rozpis…</p>
       ) : (
         <>
-          <CoveragePanel
-            days={coverage.days}
+          <CoverageAlertsPanel
+            alerts={alerts}
             hasConfiguredIntervals={coverage.hasConfiguredIntervals}
-            totalGaps={coverage.gaps.length}
+            activeAlertId={activeAlert?.id ?? null}
+            onSelectAlert={handleSelectAlert}
           />
 
-          <ScheduleDndProvider onMove={handleMove}>
+          <ScheduleDndProvider
+            shiftDnDEnabled={shiftDnDEnabled}
+            rowDnDEnabled={isEditOrderMode}
+            onMove={handleMove}
+            onReorderRows={reorderEmployees}
+          >
             <ScheduleTable
               weekDays={weekDays}
               schedule={schedule}
@@ -221,10 +307,16 @@ export default function SchedulePage() {
               shiftTypes={shiftTypes}
               guestCounts={guestCounts}
               onGuestCountChange={handleGuestCountChange}
+              isEditOrderMode={isEditOrderMode}
+              shiftDnDEnabled={shiftDnDEnabled}
+              employeeOrderIds={employeeOrderIds}
+              highlightedDate={activeAlert?.date ?? null}
+              highlightedEmployeeIds={activeAlert?.coveringEmployeeIds ?? []}
             />
             <p className="mt-3 text-xs text-slate-400">
-              Přetáhněte směnu pro manuální úpravu data. Sloupce Zaměstnanec a Soll Std.
-              zůstávají při scrollování připnuté.
+              {isEditOrderMode
+                ? "Přetáhněte řádek za úchyt ⋮⋮ pro změnu pořadí. Přesun směn je dočasně vypnut."
+                : "Přetáhněte směnu pro manuální úpravu data. Sloupce Zaměstnanec a Soll Std. zůstávají při scrollování připnuté."}
             </p>
           </ScheduleDndProvider>
         </>

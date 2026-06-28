@@ -1,13 +1,13 @@
 "use client";
 
-import { Fragment, useMemo } from "react";
-import { DepartmentSectionHeader } from "./DepartmentSectionHeader";
+import { useEffect, useMemo, useRef } from "react";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { EmployeeRow } from "./EmployeeRow";
 import { ScheduleTableHeader } from "./ScheduleTableHeader";
 import {
   STICKY_COL_EMPLOYEE,
   STICKY_COL_SOLL,
-  buildDepartmentGroups,
+  buildEmployeeRows,
 } from "./schedule-utils";
 import type { Employee, Schedule, ShiftType } from "@/types";
 
@@ -18,6 +18,11 @@ interface ScheduleTableProps {
   shiftTypes: ShiftType[];
   guestCounts: Record<string, number>;
   onGuestCountChange: (dayKey: string, value: number) => void;
+  isEditOrderMode: boolean;
+  shiftDnDEnabled: boolean;
+  employeeOrderIds: string[] | null;
+  highlightedDate: string | null;
+  highlightedEmployeeIds: string[];
 }
 
 export function ScheduleTable({
@@ -27,24 +32,43 @@ export function ScheduleTable({
   shiftTypes,
   guestCounts,
   onGuestCountChange,
+  isEditOrderMode,
+  shiftDnDEnabled,
+  employeeOrderIds,
+  highlightedDate,
+  highlightedEmployeeIds,
 }: ScheduleTableProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const stickySollLeft = STICKY_COL_EMPLOYEE;
 
-  const departments = useMemo(
+  const rows = useMemo(
     () =>
-      buildDepartmentGroups(
+      buildEmployeeRows(
         employees,
         schedule?.assignments ?? [],
-        shiftTypes,
+        employeeOrderIds,
       ),
-    [employees, schedule?.assignments, shiftTypes],
+    [employees, schedule?.assignments, employeeOrderIds],
   );
+
+  const sortableIds = useMemo(() => rows.map((row) => row.employee.id), [rows]);
+
+  useEffect(() => {
+    if (!highlightedDate || !scrollRef.current) return;
+
+    const headerCell = scrollRef.current.querySelector(
+      `[data-day-key="${highlightedDate}"]`,
+    );
+    if (headerCell instanceof HTMLElement) {
+      headerCell.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+  }, [highlightedDate]);
 
   const totalCols = 2 + weekDays.length + 1;
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="overflow-auto max-h-[calc(100vh-240px)]">
+      <div ref={scrollRef} className="overflow-auto max-h-[calc(100vh-200px)]">
         <table className="w-full min-w-[1200px] border-collapse text-sm table-fixed">
           <colgroup>
             <col style={{ width: STICKY_COL_EMPLOYEE }} />
@@ -59,38 +83,36 @@ export function ScheduleTable({
             guestCounts={guestCounts}
             onGuestCountChange={onGuestCountChange}
             stickySollLeft={stickySollLeft}
+            highlightedDate={highlightedDate}
           />
-          <tbody>
-            {departments.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={totalCols}
-                  className="px-6 py-16 text-center text-slate-400"
-                >
-                  Zatím žádné směny. Nastavte hosty a klikněte na „Vygenerovat rozpis“.
-                </td>
-              </tr>
-            ) : (
-              departments.map((dept) => (
-                <Fragment key={dept.id}>
-                  <DepartmentSectionHeader
-                    label={dept.label}
-                    dayCount={weekDays.length}
+          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={totalCols}
+                    className="px-6 py-16 text-center text-slate-400"
+                  >
+                    Zatím žádní zaměstnanci. Přidejte je v modulu Zaměstnanci.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
+                  <EmployeeRow
+                    key={row.employee.id}
+                    row={row}
+                    weekDays={weekDays}
+                    shiftTypes={shiftTypes}
                     stickySollLeft={stickySollLeft}
+                    isEditOrderMode={isEditOrderMode}
+                    shiftDnDEnabled={shiftDnDEnabled}
+                    highlightedDate={highlightedDate}
+                    highlightedEmployeeIds={highlightedEmployeeIds}
                   />
-                  {dept.employees.map((row) => (
-                    <EmployeeRow
-                      key={row.employee.id}
-                      row={row}
-                      weekDays={weekDays}
-                      shiftTypes={shiftTypes}
-                      stickySollLeft={stickySollLeft}
-                    />
-                  ))}
-                </Fragment>
-              ))
-            )}
-          </tbody>
+                ))
+              )}
+            </tbody>
+          </SortableContext>
         </table>
       </div>
     </div>

@@ -112,8 +112,8 @@ export default function AvailabilityPage() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Dostupnost</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Týdenní dostupnost pro plánování rozpisu. Zaměstnanci s výchozí šablonou
-            mají týden předvyplněný automaticky.
+            Nový týden se předvyplní podle výchozí šablony každého zaměstnance.
+            Upravte jen konkrétní výjimky pro daný týden.
           </p>
         </div>
 

@@ -49,10 +49,12 @@ export {
 export {
   AVAILABILITY_STATUSES,
   bootstrapWeeklyAvailabilityIfNeeded,
+  copyWeeklyAvailabilityFromWeek,
   ensureWeeklyAvailabilityForSchedule,
   loadWeeklyAvailabilityByEmployee,
   loadWeeklyAvailabilityGrid,
   nextAvailabilityStatus,
+  resetWeeklyAvailabilityFromTemplate,
   syncMissingWeeklyRowsForActiveEmployees,
   updateWeeklyAvailabilityStatus,
   weekDayKeys,

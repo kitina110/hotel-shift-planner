@@ -291,6 +291,106 @@ export async function updateWeeklyAvailabilityStatus(
   };
 }
 
+/** Overwrite target week from EmployeeDefaultAvailability for all active employees. */
+export async function resetWeeklyAvailabilityFromTemplate(
+  db: DbClient,
+  scheduleId: string,
+  weekStart: Date,
+): Promise<number> {
+  const normalizedWeek = normalizeWeekStart(weekStart);
+  const days = eachDayOfInterval({
+    start: normalizedWeek,
+    end: addDays(normalizedWeek, 6),
+  });
+
+  await syncMissingWeeklyRowsForActiveEmployees(db, scheduleId, normalizedWeek);
+
+  const employees = await db.employee.findMany({
+    where: { isActive: true },
+    include: { defaultAvailabilityTemplate: true },
+  });
+
+  let updated = 0;
+
+  for (const employee of employees) {
+    const template = defaultTemplateByDayOfWeek(employee.defaultAvailabilityTemplate);
+
+    for (let dayOfWeek = 0; dayOfWeek < days.length; dayOfWeek++) {
+      const status = template.get(dayOfWeek) ?? "AVAILABLE";
+      const dateKey = format(days[dayOfWeek]!, "yyyy-MM-dd");
+      await updateWeeklyAvailabilityStatus(db, {
+        scheduleId,
+        employeeId: employee.id,
+        dateKey,
+        status,
+      });
+      updated++;
+    }
+  }
+
+  return updated;
+}
+
+/** Copy active employees' availability from source week to target week (Mon–Sun mapping). */
+export async function copyWeeklyAvailabilityFromWeek(
+  db: DbClient,
+  targetScheduleId: string,
+  targetWeekStart: Date,
+  sourceScheduleId: string,
+  sourceWeekStart: Date,
+): Promise<number> {
+  const normalizedTarget = normalizeWeekStart(targetWeekStart);
+  const normalizedSource = normalizeWeekStart(sourceWeekStart);
+
+  if (normalizedTarget.getTime() === normalizedSource.getTime()) {
+    throw new Error("Zdrojový a cílový týden musí být rozdílné");
+  }
+
+  await syncMissingWeeklyRowsForActiveEmployees(
+    db,
+    targetScheduleId,
+    normalizedTarget,
+  );
+
+  const [sourceRows, activeEmployees] = await Promise.all([
+    db.employeeWeeklyAvailability.findMany({
+      where: { scheduleId: sourceScheduleId },
+      orderBy: [{ employeeId: "asc" }, { date: "asc" }],
+    }),
+    db.employee.findMany({
+      where: { isActive: true },
+      select: { id: true },
+    }),
+  ]);
+
+  const activeIds = new Set(activeEmployees.map((employee) => employee.id));
+  const targetDays = weekDayKeys(normalizedTarget);
+  const sourceDays = weekDayKeys(normalizedSource);
+
+  let updated = 0;
+
+  for (const row of sourceRows) {
+    if (!activeIds.has(row.employeeId)) continue;
+
+    const sourceDateKey = format(row.date, "yyyy-MM-dd");
+    const dayIndex = sourceDays.indexOf(sourceDateKey);
+    if (dayIndex < 0) continue;
+
+    const targetDateKey = targetDays[dayIndex];
+    if (!targetDateKey) continue;
+
+    await updateWeeklyAvailabilityStatus(db, {
+      scheduleId: targetScheduleId,
+      employeeId: row.employeeId,
+      dateKey: targetDateKey,
+      status: row.status as AvailabilityStatus,
+    });
+    updated++;
+  }
+
+  return updated;
+}
+
 export const AVAILABILITY_STATUSES: AvailabilityStatus[] = [
   "AVAILABLE",
   "PREFERRED_OFF",

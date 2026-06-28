@@ -4,8 +4,12 @@ import {
   type HistoricalAssignment,
   type SchedulerInput,
 } from "@/lib/scheduler";
+import { resolveSchedulerAvailabilityInput } from "@/lib/availability/scheduler-bridge";
+import {
+  ensureWeeklyAvailabilityForSchedule,
+  loadWeeklyAvailabilityByEmployee,
+} from "@/lib/availability/weekly-availability";
 import { ensureScheduleForWeek } from "@/lib/schedule/ensure-schedule";
-import { ensureWeeklyAvailabilityForSchedule } from "@/lib/availability/weekly-availability";
 import { endTimeFromStartAndDuration } from "@/lib/shift-time";
 import { zoneInclude } from "@/lib/coverage-api";
 import { isPlannableEmployee } from "@/lib/employee";
@@ -34,16 +38,18 @@ export async function loadSchedulerInput(
     schedule.weekStart,
   );
 
-  const [shiftTypes, employees, staffingRules, operationalZones] = await Promise.all([
-    prisma.shiftType.findMany(),
-    prisma.employee.findMany({
-      include: { qualifications: true, availabilities: true },
-    }),
-    prisma.staffingRule.findMany(),
-    prisma.operationalZone.findMany({
-      include: zoneInclude,
-    }),
-  ]);
+  const [shiftTypes, employees, staffingRules, operationalZones, weeklyByEmployee] =
+    await Promise.all([
+      prisma.shiftType.findMany(),
+      prisma.employee.findMany({
+        include: { qualifications: true },
+      }),
+      prisma.staffingRule.findMany(),
+      prisma.operationalZone.findMany({
+        include: zoneInclude,
+      }),
+      loadWeeklyAvailabilityByEmployee(prisma, schedule.id),
+    ]);
 
   const historyStart = subWeeks(normalizedWeek, 8);
   const historicalRows = await prisma.scheduleAssignment.findMany({
@@ -81,12 +87,10 @@ export async function loadSchedulerInput(
       contractHoursPerWeek: e.contractHoursPerWeek,
       maxConsecutiveDays: e.maxConsecutiveDays,
       qualifiedShiftTypeIds: e.qualifications.map((q) => q.shiftTypeId),
-      availability: Object.fromEntries(
-        e.availabilities.map((a) => [
-          a.dayOfWeek,
-          { available: a.available, preferredOff: a.preferredOff },
-        ]),
-      ),
+      availability: resolveSchedulerAvailabilityInput({
+        legacyRows: [],
+        weeklyRows: weeklyByEmployee.get(e.id) ?? [],
+      }),
     })),
     staffingRules: staffingRules.map((r) => ({
       shiftTypeId: r.shiftTypeId,

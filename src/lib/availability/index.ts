@@ -41,6 +41,7 @@ export {
   AVAILABILITY_STATUSES,
   bootstrapWeeklyAvailabilityIfNeeded,
   ensureWeeklyAvailabilityForSchedule,
+  loadWeeklyAvailabilityByEmployee,
   loadWeeklyAvailabilityGrid,
   nextAvailabilityStatus,
   syncMissingWeeklyRowsForActiveEmployees,
@@ -48,4 +49,5 @@ export {
   weekDayKeys,
   type WeeklyAvailabilityCell,
   type WeeklyAvailabilityGrid,
+  type WeeklyAvailabilityRow,
 } from "@/lib/availability/weekly-availability";

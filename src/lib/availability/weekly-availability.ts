@@ -165,6 +165,35 @@ export async function ensureWeeklyAvailabilityForSchedule(
   await syncMissingWeeklyRowsForActiveEmployees(db, scheduleId, weekStart);
 }
 
+export type WeeklyAvailabilityRow = {
+  date: Date;
+  status: AvailabilityStatus;
+};
+
+/** Weekly rows for one schedule, grouped by employee id (E5 scheduler input). */
+export async function loadWeeklyAvailabilityByEmployee(
+  db: DbClient,
+  scheduleId: string,
+): Promise<Map<string, WeeklyAvailabilityRow[]>> {
+  const rows = await db.employeeWeeklyAvailability.findMany({
+    where: { scheduleId },
+    orderBy: [{ employeeId: "asc" }, { date: "asc" }],
+  });
+
+  const byEmployee = new Map<string, WeeklyAvailabilityRow[]>();
+
+  for (const row of rows) {
+    const list = byEmployee.get(row.employeeId) ?? [];
+    list.push({
+      date: row.date,
+      status: row.status as AvailabilityStatus,
+    });
+    byEmployee.set(row.employeeId, list);
+  }
+
+  return byEmployee;
+}
+
 export async function loadWeeklyAvailabilityGrid(
   db: DbClient,
   weekStart: Date,

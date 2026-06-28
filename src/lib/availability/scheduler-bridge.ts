@@ -5,7 +5,7 @@ import {
 } from "@/lib/availability/status";
 import type { AvailabilityStatus } from "@/types";
 
-/** Scheduler still expects legacy shape — prepared for E5 cutover, not wired yet. */
+/** Scheduler still expects legacy shape; weekly rows map into this via statusToLegacyAvailability. */
 export interface SchedulerLegacyAvailability {
   available: boolean;
   preferredOff: boolean;
@@ -50,22 +50,33 @@ export function mapWeeklyStatusToSchedulerAvailability(
 }
 
 /**
- * Future E5 entry point: choose weekly rows when present, else fall back to legacy.
- * Not used by generator in E2.
+ * Resolve scheduler availability. When `weeklyRows` is provided (E5+ generator), weekly
+ * data is authoritative and legacy rows are ignored. An empty weekly array defaults to
+ * all days available. Omit `weeklyRows` to use legacy rows only (pre-E5 callers).
  */
 export function resolveSchedulerAvailabilityInput(params: {
   legacyRows: LegacyAvailabilityDay[];
   weeklyRows?: Array<{ date: Date | string; status: AvailabilityStatus }>;
   weekDayIndex?: (date: Date) => number;
 }): SchedulerAvailabilityByDay {
-  if (params.weeklyRows?.length) {
-    const indexFn =
-      params.weekDayIndex ??
-      ((date: Date) => {
-        const d = date.getDay();
-        return d === 0 ? 6 : d - 1;
-      });
-    return mapWeeklyStatusToSchedulerAvailability(params.weeklyRows, indexFn);
+  if (params.weeklyRows !== undefined) {
+    if (params.weeklyRows.length > 0) {
+      const indexFn =
+        params.weekDayIndex ??
+        ((date: Date) => {
+          const d = date.getDay();
+          return d === 0 ? 6 : d - 1;
+        });
+      return mapWeeklyStatusToSchedulerAvailability(params.weeklyRows, indexFn);
+    }
+
+    return mapLegacyRowsToSchedulerAvailability(
+      Array.from({ length: 7 }, (_, dayOfWeek) => ({
+        dayOfWeek,
+        available: true,
+        preferredOff: false,
+      })),
+    );
   }
 
   return mapLegacyRowsToSchedulerAvailability(params.legacyRows);

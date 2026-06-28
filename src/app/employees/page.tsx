@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   EmployeeCard,
   employeeToEditDraft,
   type EmployeeEditDraft,
 } from "@/components/employees/EmployeeCard";
 import { QualificationPicker } from "@/components/employees/QualificationPicker";
+import { ToastBanner } from "@/components/ToastBanner";
+import { Button, Input } from "@/components/ui";
+import { employeeListSortCompare } from "@/lib/employee/display";
 import type { Employee, ShiftType } from "@/types";
 
 const emptyCreateForm = {
@@ -15,6 +18,15 @@ const emptyCreateForm = {
   shiftTypeIds: [] as string[],
 };
 
+type ToastState = {
+  message: string;
+  variant: "info" | "success" | "error";
+};
+
+function sortEmployees(list: Employee[]): Employee[] {
+  return [...list].sort(employeeListSortCompare);
+}
+
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
@@ -22,16 +34,35 @@ export default function EmployeesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EmployeeEditDraft | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
+  const [focusNameOnEditId, setFocusNameOnEditId] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+
+  const { activeEmployees, inactiveEmployees } = useMemo(() => {
+    const sorted = sortEmployees(employees);
+    return {
+      activeEmployees: sorted.filter((employee) => employee.isActive),
+      inactiveEmployees: sorted.filter((employee) => !employee.isActive),
+    };
+  }, [employees]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   async function load() {
     const [empRes, typesRes] = await Promise.all([
       fetch("/api/employees"),
       fetch("/api/shift-types"),
     ]);
-    setEmployees(await empRes.json());
+    setEmployees(sortEmployees(await empRes.json()));
     setShiftTypes(await typesRes.json());
   }
 
@@ -41,7 +72,9 @@ export default function EmployeesPage() {
 
   function replaceEmployee(updated: Employee) {
     setEmployees((prev) =>
-      prev.map((employee) => (employee.id === updated.id ? updated : employee)),
+      sortEmployees(
+        prev.map((employee) => (employee.id === updated.id ? updated : employee)),
+      ),
     );
   }
 
@@ -60,8 +93,12 @@ export default function EmployeesPage() {
         throw new Error(data.error ?? "Nepodařilo se vytvořit zaměstnance");
       }
       const created: Employee = await res.json();
-      setEmployees((prev) => [...prev, created].sort((a, b) => a.sortOrder - b.sortOrder));
+      setEmployees((prev) => sortEmployees([...prev, created]));
       setCreateForm(emptyCreateForm);
+      setToast({
+        message: `Zaměstnanec ${created.name} byl přidán.`,
+        variant: "success",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při vytváření");
     } finally {
@@ -69,9 +106,12 @@ export default function EmployeesPage() {
     }
   }
 
-  function startEdit(employee: Employee) {
+  function startEdit(employee: Employee, options?: { focusName?: boolean }) {
     setEditingId(employee.id);
     setEditDraft(employeeToEditDraft(employee));
+    if (options?.focusName) {
+      setFocusNameOnEditId(employee.id);
+    }
   }
 
   function cancelEdit() {
@@ -116,14 +156,142 @@ export default function EmployeesPage() {
   async function handleDelete(id: string) {
     if (!confirm("Smazat zaměstnance?")) return;
     setError(null);
-    const res = await fetch(`/api/employees/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      setError("Nepodařilo se smazat zaměstnance");
-      return;
+    try {
+      const res = await fetch(`/api/employees/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error ?? "Nepodařilo se smazat zaměstnance");
+      }
+
+      if (data.deactivated && data.employee) {
+        replaceEmployee(data.employee);
+        setToast({
+          message:
+            data.message ??
+            "Zaměstnanec nemohl být smazán, protože je součástí historických rozpisů. Byl proto označen jako neaktivní.",
+          variant: "info",
+        });
+        if (editingId === id) cancelEdit();
+        return;
+      }
+
+      setEmployees((prev) => prev.filter((employee) => employee.id !== id));
+      if (expandedId === id) setExpandedId(null);
+      if (editingId === id) cancelEdit();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při mazání");
     }
-    setEmployees((prev) => prev.filter((employee) => employee.id !== id));
-    if (expandedId === id) setExpandedId(null);
-    if (editingId === id) cancelEdit();
+  }
+
+  async function setEmployeeActive(id: string, isActive: boolean) {
+    const res = await fetch(`/api/employees/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error ?? "Nepodařilo se změnit stav zaměstnance");
+    }
+    return data as Employee;
+  }
+
+  async function handleReactivate(id: string) {
+    setReactivatingId(id);
+    setError(null);
+    try {
+      const updated = await setEmployeeActive(id, true);
+      replaceEmployee(updated);
+      setToast({
+        message: `${updated.name} byl znovu aktivován.`,
+        variant: "success",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při obnovení");
+    } finally {
+      setReactivatingId(null);
+    }
+  }
+
+  async function handleDeactivate(id: string) {
+    if (!confirm("Deaktivovat zaměstnance? Nebude se zobrazovat v rozpisu.")) return;
+    setDeactivatingId(id);
+    setError(null);
+    try {
+      const updated = await setEmployeeActive(id, false);
+      replaceEmployee(updated);
+      if (editingId === id) cancelEdit();
+      setToast({
+        message: `${updated.name} byl deaktivován.`,
+        variant: "info",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při deaktivaci");
+    } finally {
+      setDeactivatingId(null);
+    }
+  }
+
+  async function handleDuplicate(id: string) {
+    setDuplicatingId(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/employees/${id}/duplicate`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error ?? "Nepodařilo se duplikovat zaměstnance");
+      }
+      const created: Employee = data;
+      setEmployees((prev) => sortEmployees([...prev, created]));
+      setExpandedId(created.id);
+      startEdit(created, { focusName: true });
+      setToast({
+        message: "Byla vytvořena kopie — upravte jméno a uložte.",
+        variant: "success",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při duplikaci");
+    } finally {
+      setDuplicatingId(null);
+    }
+  }
+
+  function renderEmployeeCard(emp: Employee) {
+    return (
+      <EmployeeCard
+        key={emp.id}
+        employee={emp}
+        shiftTypes={shiftTypes}
+        expanded={expandedId === emp.id}
+        editing={editingId === emp.id}
+        saving={savingId === emp.id}
+        duplicating={duplicatingId === emp.id}
+        reactivating={reactivatingId === emp.id}
+        deactivating={deactivatingId === emp.id}
+        focusNameOnEdit={focusNameOnEditId === emp.id}
+        onNameFocusHandled={() => {
+          if (focusNameOnEditId === emp.id) setFocusNameOnEditId(null);
+        }}
+        draft={editingId === emp.id ? editDraft : null}
+        onToggleExpand={() => {
+          if (expandedId === emp.id) {
+            setExpandedId(null);
+            if (editingId === emp.id) cancelEdit();
+          } else {
+            setExpandedId(emp.id);
+            if (editingId && editingId !== emp.id) cancelEdit();
+          }
+        }}
+        onStartEdit={() => startEdit(emp)}
+        onCancelEdit={cancelEdit}
+        onDraftChange={setEditDraft}
+        onSave={() => handleSave(emp.id)}
+        onDelete={() => handleDelete(emp.id)}
+        onDuplicate={() => handleDuplicate(emp.id)}
+        onReactivate={() => handleReactivate(emp.id)}
+        onDeactivate={() => handleDeactivate(emp.id)}
+      />
+    );
   }
 
   return (
@@ -144,16 +312,16 @@ export default function EmployeesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="block">
             <span className="text-sm font-medium text-slate-600">Jméno</span>
-            <input
+            <Input
               required
               value={createForm.name}
               onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              className="mt-1"
             />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-600">Úvazek (h/týden)</span>
-            <input
+            <span className="text-sm font-medium text-slate-700">Úvazek (h/týden)</span>
+            <Input
               type="number"
               min={1}
               value={createForm.contractHoursPerWeek}
@@ -163,7 +331,7 @@ export default function EmployeesPage() {
                   contractHoursPerWeek: Number(e.target.value),
                 })
               }
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              className="mt-1"
             />
           </label>
         </div>
@@ -179,44 +347,38 @@ export default function EmployeesPage() {
             />
           </div>
         </div>
-        <button
-          type="submit"
-          disabled={creating}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={creating}>
           {creating ? "Ukládám…" : "Přidat zaměstnance"}
-        </button>
+        </Button>
       </form>
 
-      <p className="text-sm text-slate-500 mb-4">{employees.length} zaměstnanců</p>
+      <p className="text-sm text-slate-500 mb-4">
+        {activeEmployees.length} aktivní
+        {inactiveEmployees.length > 0
+          ? ` · ${inactiveEmployees.length} neaktivní`
+          : ""}
+      </p>
 
       <div className="space-y-2">
-        {employees.map((emp) => (
-          <EmployeeCard
-            key={emp.id}
-            employee={emp}
-            shiftTypes={shiftTypes}
-            expanded={expandedId === emp.id}
-            editing={editingId === emp.id}
-            saving={savingId === emp.id}
-            draft={editingId === emp.id ? editDraft : null}
-            onToggleExpand={() => {
-              if (expandedId === emp.id) {
-                setExpandedId(null);
-                if (editingId === emp.id) cancelEdit();
-              } else {
-                setExpandedId(emp.id);
-                if (editingId && editingId !== emp.id) cancelEdit();
-              }
-            }}
-            onStartEdit={() => startEdit(emp)}
-            onCancelEdit={cancelEdit}
-            onDraftChange={setEditDraft}
-            onSave={() => handleSave(emp.id)}
-            onDelete={() => handleDelete(emp.id)}
-          />
-        ))}
+        {activeEmployees.map(renderEmployeeCard)}
       </div>
+
+      {inactiveEmployees.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400 mb-3">
+            Neaktivní
+          </h3>
+          <div className="space-y-2">{inactiveEmployees.map(renderEmployeeCard)}</div>
+        </div>
+      )}
+
+      {toast && (
+        <ToastBanner
+          message={toast.message}
+          variant={toast.variant}
+          onDismiss={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

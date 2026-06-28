@@ -1,22 +1,21 @@
 import { NextResponse } from "next/server";
 import { validateEmployeeProfileInput } from "@/lib/employee/profile-validation";
 import {
+  employeeApiInclude,
+  mapEmployeeToApi,
+} from "@/lib/employee/api-response";
+import {
   defaultTemplateCreateInputFromLegacy,
   legacyAvailabilityCreateInput,
-  writeLegacyAvailabilityWithDualSync,
 } from "@/lib/availability/legacy-sync";
 import { prisma } from "@/lib/db";
 
 export async function GET() {
   const employees = await prisma.employee.findMany({
-    include: {
-      qualifications: true,
-      availabilities: true,
-      defaultAvailabilityTemplate: true,
-    },
+    include: employeeApiInclude,
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
-  return NextResponse.json(employees);
+  return NextResponse.json(employees.map(mapEmployeeToApi));
 }
 
 export async function POST(request: Request) {
@@ -62,12 +61,8 @@ export async function POST(request: Request) {
       defaultAvailabilityTemplate: defaultTemplateCreateInputFromLegacy(availability),
       availabilities: legacyAvailabilityInput,
     },
-    include: {
-      qualifications: true,
-      availabilities: true,
-      defaultAvailabilityTemplate: true,
-    },
+    include: employeeApiInclude,
   });
 
-  return NextResponse.json(employee, { status: 201 });
+  return NextResponse.json(mapEmployeeToApi(employee), { status: 201 });
 }

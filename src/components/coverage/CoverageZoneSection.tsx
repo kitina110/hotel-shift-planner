@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CoverageIntervalBlock } from "@/components/coverage/CoverageIntervalBlock";
+import { Button, Input } from "@/components/ui";
 import {
   createCoverageInterval,
   deleteCoverageZone,
@@ -94,51 +95,42 @@ export function CoverageZoneSection({ zone, onChanged }: CoverageZoneSectionProp
           <div className="flex flex-wrap items-end gap-2">
             <label className="block">
               <span className="text-xs text-slate-500">Název zóny</span>
-              <input
+              <Input
+                inputSize="lg"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="mt-0.5 block rounded-lg border border-slate-200 px-3 py-1.5 text-lg font-semibold"
+                className="mt-0.5"
               />
             </label>
-            <button
-              type="button"
-              onClick={saveName}
+            <Button
+              variant="link"
               disabled={nameLoading}
-              className="text-sm text-indigo-600 hover:underline disabled:opacity-50"
+              onClick={saveName}
             >
               {nameLoading ? "Ukládám…" : "Uložit"}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="linkMuted"
               onClick={() => {
                 setEditingName(false);
                 setName(zone.name);
                 setNameError(null);
               }}
-              className="text-sm text-slate-500 hover:underline"
             >
               Zrušit
-            </button>
+            </Button>
           </div>
         ) : (
           <h3 className="text-xl font-bold text-slate-900">{zone.name}</h3>
         )}
         {!editingName && (
           <div className="flex gap-3 text-sm">
-            <button
-              type="button"
-              onClick={() => setEditingName(true)}
-              className="text-indigo-600 hover:underline"
-            >
+            <Button variant="link" onClick={() => setEditingName(true)}>
               Upravit
-            </button>
-            <button
-              type="button"
-              onClick={() => setDeleteOpen(true)}
-              className="text-red-600 hover:underline"
-            >
+            </Button>
+            <Button variant="linkDanger" onClick={() => setDeleteOpen(true)}>
               Smazat zónu
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -165,53 +157,46 @@ export function CoverageZoneSection({ zone, onChanged }: CoverageZoneSectionProp
           <div className="flex flex-wrap items-end gap-2">
             <label className="block">
               <span className="text-xs text-slate-500">Od</span>
-              <input
+              <Input
                 type="time"
+                inputSize="sm"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="mt-0.5 block rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                className="mt-0.5"
               />
             </label>
             <label className="block">
-              <span className="text-xs text-slate-500">Do</span>
-              <input
+              <span className="text-xs text-slate-600">Do</span>
+              <Input
                 type="time"
+                inputSize="sm"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="mt-0.5 block rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                className="mt-0.5"
               />
             </label>
-            <button
-              type="button"
-              onClick={addInterval}
-              disabled={intervalLoading}
-              className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
+            <Button size="sm" disabled={intervalLoading} onClick={addInterval}>
               {intervalLoading ? "Ukládám…" : "Vytvořit interval"}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={() => {
                 setShowAddInterval(false);
                 setIntervalError(null);
               }}
-              className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-600"
             >
               Zrušit
-            </button>
+            </Button>
           </div>
           {intervalError && (
             <p className="mt-2 text-xs text-red-600">{intervalError}</p>
           )}
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => setShowAddInterval(true)}
-          className="mt-4 text-sm font-medium text-indigo-600 hover:text-indigo-800"
-        >
+        <Button variant="link" className="mt-4" onClick={() => setShowAddInterval(true)}>
           + Přidat interval
-        </button>
+        </Button>
       )}
 
       <ConfirmDialog

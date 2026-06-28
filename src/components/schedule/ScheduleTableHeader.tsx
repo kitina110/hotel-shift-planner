@@ -1,6 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
+import { Input } from "@/components/ui";
 import {
   formatDayHeader,
   highlightDayClass,
@@ -81,12 +82,13 @@ export function ScheduleTableHeader({
               key={`guest-${key}`}
               className={`px-2 py-2 font-normal ${isHighlighted ? highlightDayClass : "bg-white"}`}
             >
-              <input
+              <Input
                 type="number"
                 min={0}
+                inputSize="sm"
                 value={guestCounts[key] ?? 80}
                 onChange={(e) => onGuestCountChange(key, Number(e.target.value))}
-                className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-center text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                className="text-center"
               />
             </th>
           );

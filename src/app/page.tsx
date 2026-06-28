@@ -4,11 +4,13 @@ import { addDays, addWeeks, format, startOfWeek, subWeeks } from "date-fns";
 import { cs } from "date-fns/locale";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScheduleDndProvider } from "@/components/ScheduleDndProvider";
+import { Button } from "@/components/ui";
 import { CoverageAlertsPanel } from "@/components/schedule/CoverageAlertsPanel";
 import { ScheduleTable } from "@/components/schedule/ScheduleTable";
 import { useEmployeeRowOrder } from "@/hooks/useEmployeeRowOrder";
 import { useScheduleCoverage } from "@/hooks/useScheduleCoverage";
 import { gapsToCoverageAlerts } from "@/lib/coverage/coverage-alerts";
+import { isPlannableEmployee } from "@/lib/employee/display";
 import type { CoverageAlert } from "@/lib/coverage/coverage-alerts";
 import type { CoverageZoneWithDetails } from "@/lib/coverage-client";
 import type { Employee, Schedule, ScheduleAssignment, ShiftType } from "@/types";
@@ -33,13 +35,18 @@ export default function SchedulePage() {
   const [guestCounts, setGuestCounts] = useState<Record<string, number>>({});
   const [activeAlert, setActiveAlert] = useState<CoverageAlert | null>(null);
 
+  const plannableEmployees = useMemo(
+    () => employees.filter(isPlannableEmployee),
+    [employees],
+  );
+
   const {
     orderIds,
     isEditOrderMode,
     startEditOrder,
     finishEditOrder,
     reorderEmployees,
-  } = useEmployeeRowOrder(employees);
+  } = useEmployeeRowOrder(plannableEmployees);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -199,14 +206,9 @@ export default function SchedulePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={generating}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-          >
+          <Button onClick={handleGenerate} disabled={generating}>
             {generating ? "Generuji…" : "Vygenerovat rozpis"}
-          </button>
+          </Button>
 
           {schedule?.status === "draft" && (
             <button
@@ -289,7 +291,7 @@ export default function SchedulePage() {
             <ScheduleTable
               weekDays={weekDays}
               schedule={schedule}
-              employees={employees}
+              employees={plannableEmployees}
               shiftTypes={shiftTypes}
               guestCounts={guestCounts}
               onGuestCountChange={handleGuestCountChange}

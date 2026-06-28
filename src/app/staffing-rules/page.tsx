@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CoverageZoneSection } from "@/components/coverage/CoverageZoneSection";
+import { Button, Input } from "@/components/ui";
 import {
   createCoverageZone,
   fetchCoverageZones,
@@ -67,20 +68,16 @@ export default function StaffingRulesPage() {
       >
         <label className="block flex-1 min-w-[200px]">
           <span className="text-sm font-medium text-slate-600">Nová provozní zóna</span>
-          <input
+          <Input
             value={newZoneName}
             onChange={(e) => setNewZoneName(e.target.value)}
             placeholder="např. Servis, Bar…"
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="mt-1"
           />
         </label>
-        <button
-          type="submit"
-          disabled={zoneSubmitting}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={zoneSubmitting}>
           {zoneSubmitting ? "Vytvářím…" : "Přidat zónu"}
-        </button>
+        </Button>
         {zoneFormError && (
           <p className="w-full text-sm text-red-600">{zoneFormError}</p>
         )}

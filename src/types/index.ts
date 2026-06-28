@@ -86,6 +86,8 @@ export interface Employee {
   /** @deprecated E8 — dočasně pro zpětnou kompatibilitu */
   availabilities: Availability[];
   defaultAvailabilityTemplate?: EmployeeDefaultAvailability[];
+  /** Má alespoň jedno přiřazení směny v historii rozpisů. */
+  hasScheduleHistory?: boolean;
 }
 
 export interface GuestForecast {

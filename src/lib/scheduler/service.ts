@@ -11,6 +11,7 @@ import {
 } from "@/lib/scheduler";
 import { endTimeFromStartAndDuration } from "@/lib/shift-time";
 import { zoneInclude } from "@/lib/coverage-api";
+import { isPlannableEmployee } from "@/lib/employee";
 import { prisma } from "@/lib/db";
 
 export async function loadSchedulerInput(
@@ -85,7 +86,7 @@ export async function loadSchedulerInput(
           : endTimeFromStartAndDuration(s.startTime, s.durationMinutes),
       zoneId: s.zoneId,
     })),
-    employees: employees.map((e) => ({
+    employees: employees.filter(isPlannableEmployee).map((e) => ({
       id: e.id,
       name: e.name,
       contractHoursPerWeek: e.contractHoursPerWeek,

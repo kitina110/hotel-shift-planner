@@ -52,10 +52,10 @@ export function DefaultAvailabilityEditor({
                   preferredOff: row.available ? false : row.preferredOff,
                 })
               }
-              className={`block w-full rounded px-1 py-0.5 text-[10px] mb-1 ${
+              className={`block w-full rounded px-1 py-0.5 text-[10px] mb-1 border ${
                 row.available
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-red-100 text-red-700"
+                  ? "border-emerald-200 bg-emerald-100 text-emerald-950"
+                  : "border-red-200 bg-red-100 text-red-900"
               }`}
             >
               {row.available ? "Dostupný" : "Nedostupný"}
@@ -66,11 +66,13 @@ export function DefaultAvailabilityEditor({
               onClick={() =>
                 updateRow(dayOfWeek, { preferredOff: !row.preferredOff })
               }
-              className={`block w-full rounded px-1 py-0.5 text-[10px] ${
-                row.preferredOff
-                  ? "bg-amber-100 text-amber-700"
-                  : "bg-slate-50 text-slate-400"
-              } ${!row.available ? "opacity-40 cursor-not-allowed" : ""}`}
+              className={`block w-full rounded px-1 py-0.5 text-[10px] border ${
+                !row.available
+                  ? "border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed"
+                  : row.preferredOff
+                    ? "border-amber-200 bg-amber-100 text-amber-950"
+                    : "border-slate-200 bg-slate-50 text-slate-700"
+              }`}
             >
               Preferuje volno
             </button>

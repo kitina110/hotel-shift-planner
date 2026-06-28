@@ -8,6 +8,7 @@ import {
   guestRuleToPayload,
   type GuestRuleFormValues,
 } from "@/components/coverage/GuestRuleForm";
+import { Button, Input } from "@/components/ui";
 import {
   createCoverageRequirementRule,
   deleteCoverageRequirementRule,
@@ -143,42 +144,38 @@ export function CoverageIntervalBlock({
           <div className="flex flex-wrap items-end gap-2">
             <label className="block">
               <span className="text-xs text-slate-500">Od</span>
-              <input
+              <Input
                 type="time"
+                inputSize="sm"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="mt-0.5 block rounded-md border border-slate-200 px-2 py-1 text-sm"
+                className="mt-0.5"
               />
             </label>
             <label className="block">
-              <span className="text-xs text-slate-500">Do</span>
-              <input
+              <span className="text-xs text-slate-600">Do</span>
+              <Input
                 type="time"
+                inputSize="sm"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="mt-0.5 block rounded-md border border-slate-200 px-2 py-1 text-sm"
+                className="mt-0.5"
               />
             </label>
-            <button
-              type="button"
-              onClick={saveInterval}
-              disabled={intervalLoading}
-              className="text-sm text-indigo-600 hover:underline disabled:opacity-50"
-            >
+            <Button variant="link" disabled={intervalLoading} onClick={saveInterval}>
               {intervalLoading ? "Ukládám…" : "Uložit"}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="linkMuted"
               onClick={() => {
                 setEditingInterval(false);
                 setStartTime(interval.startTime);
                 setEndTime(interval.endTime);
                 setIntervalError(null);
               }}
-              className="text-sm text-slate-500 hover:underline"
             >
               Zrušit
-            </button>
+            </Button>
           </div>
         ) : (
           <h4 className="text-base font-semibold text-slate-800 tabular-nums">
@@ -187,20 +184,12 @@ export function CoverageIntervalBlock({
         )}
         {!editingInterval && (
           <div className="flex gap-3 text-sm">
-            <button
-              type="button"
-              onClick={() => setEditingInterval(true)}
-              className="text-indigo-600 hover:underline"
-            >
+            <Button variant="link" onClick={() => setEditingInterval(true)}>
               Upravit
-            </button>
-            <button
-              type="button"
-              onClick={() => setDeleteIntervalOpen(true)}
-              className="text-red-600 hover:underline"
-            >
+            </Button>
+            <Button variant="linkDanger" onClick={() => setDeleteIntervalOpen(true)}>
               Smazat
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -229,20 +218,16 @@ export function CoverageIntervalBlock({
             ) : (
               <li key={rule.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span>• {formatGuestRuleLabel(rule.minGuests, rule.maxGuests, rule.staffCount)}</span>
-                <button
-                  type="button"
-                  onClick={() => startEditRule(rule)}
-                  className="text-xs text-indigo-600 hover:underline"
-                >
+                <Button variant="link" className="text-xs" onClick={() => startEditRule(rule)}>
                   Upravit
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="linkDanger"
+                  className="text-xs"
                   onClick={() => setDeleteRuleId(rule.id)}
-                  className="text-xs text-red-600 hover:underline"
                 >
                   Smazat
-                </button>
+                </Button>
               </li>
             ),
           )

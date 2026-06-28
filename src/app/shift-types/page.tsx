@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Button, Input, Select } from "@/components/ui";
 import {
   endTimeFromStartAndDuration,
   formatDurationHours,
@@ -156,20 +157,20 @@ export default function ShiftsPage() {
       >
         <label className="block col-span-2 sm:col-span-1">
           <span className="text-sm font-medium text-slate-600">Název směny</span>
-          <input
+          <Input
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="mt-1"
             placeholder="Bar, Servis…"
           />
         </label>
         <label className="block col-span-2 sm:col-span-1">
-          <span className="text-sm font-medium text-slate-600">Provozní zóna</span>
-          <select
+          <span className="text-sm font-medium text-slate-700">Provozní zóna</span>
+          <Select
             value={form.zoneId}
             onChange={(e) => setForm({ ...form, zoneId: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="mt-1"
           >
             <option value="">— Nepřiřazeno —</option>
             {zones.map((zone) => (
@@ -177,26 +178,26 @@ export default function ShiftsPage() {
                 {zone.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="block">
-          <span className="text-sm font-medium text-slate-600">Začátek směny</span>
-          <input
+          <span className="text-sm font-medium text-slate-700">Začátek směny</span>
+          <Input
             required
             type="time"
             value={form.startTime}
             onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="mt-1"
           />
         </label>
         <label className="block">
-          <span className="text-sm font-medium text-slate-600">Konec směny</span>
-          <input
+          <span className="text-sm font-medium text-slate-700">Konec směny</span>
+          <Input
             required
             type="time"
             value={form.endTime}
             onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="mt-1"
           />
         </label>
         {formError && (
@@ -205,25 +206,21 @@ export default function ShiftsPage() {
           </div>
         )}
         <div className="col-span-2 flex gap-2">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
+          <Button type="submit" disabled={submitting}>
             {submitting ? "Ukládám…" : editingId ? "Uložit" : "Přidat směnu"}
-          </button>
+          </Button>
           {editingId && (
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={() => {
                 setEditingId(null);
                 setForm(EMPTY_FORM);
                 setFormError(null);
               }}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm"
             >
               Zrušit
-            </button>
+            </Button>
           )}
         </div>
       </form>

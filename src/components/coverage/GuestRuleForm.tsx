@@ -1,6 +1,7 @@
 "use client";
 
 import { validateGuestRuleInput } from "@/lib/coverage-display";
+import { Button, Input } from "@/components/ui";
 
 export interface GuestRuleFormValues {
   minGuests: number;
@@ -46,58 +47,53 @@ export function GuestRuleForm({
       className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-100 bg-slate-50/80 p-3"
     >
       <label className="block">
-        <span className="text-xs font-medium text-slate-600">Min. hosté</span>
-        <input
+        <span className="text-xs font-medium text-slate-700">Min. hosté</span>
+        <Input
           type="number"
           min={0}
+          inputSize="sm"
           value={values.minGuests}
           onChange={(e) =>
             onChange({ ...values, minGuests: Number(e.target.value) })
           }
-          className="mt-1 w-24 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+          className="mt-1 w-24"
         />
       </label>
       <label className="block">
-        <span className="text-xs font-medium text-slate-600">Max. hosté</span>
-        <input
+        <span className="text-xs font-medium text-slate-700">Max. hosté</span>
+        <Input
           type="number"
           min={0}
+          inputSize="sm"
           placeholder="∞"
           value={values.maxGuests}
           onChange={(e) => onChange({ ...values, maxGuests: e.target.value })}
-          className="mt-1 w-24 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+          className="mt-1 w-24"
         />
       </label>
       <label className="block">
-        <span className="text-xs font-medium text-slate-600">Počet lidí</span>
-        <input
+        <span className="text-xs font-medium text-slate-700">Počet lidí</span>
+        <Input
           type="number"
           min={1}
+          inputSize="sm"
           value={values.staffCount}
           onChange={(e) =>
             onChange({ ...values, staffCount: Number(e.target.value) })
           }
-          className="mt-1 w-24 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+          className="mt-1 w-24"
         />
       </label>
-      <button
-        type="submit"
-        disabled={loading || clientError !== null}
-        className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-      >
+      <Button type="submit" size="sm" disabled={loading || clientError !== null}>
         {loading ? "Ukládám…" : submitLabel}
-      </button>
+      </Button>
       {onCancel && (
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-white"
-        >
+        <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
           Zrušit
-        </button>
+        </Button>
       )}
       {(error || clientError) && (
-        <p className="w-full text-xs text-red-600">{error ?? clientError}</p>
+        <p className="w-full text-xs text-red-800">{error ?? clientError}</p>
       )}
     </form>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   buildAvailabilityFormRows,
   DefaultAvailabilityEditor,
@@ -10,6 +11,7 @@ import {
   QualificationPicker,
   qualificationSummary,
 } from "@/components/employees/QualificationPicker";
+import { Badge, Button, Checkbox, Input } from "@/components/ui";
 import type { Employee, ShiftType } from "@/types";
 
 export interface EmployeeEditDraft {
@@ -41,12 +43,20 @@ interface EmployeeCardProps {
   editing: boolean;
   saving: boolean;
   draft: EmployeeEditDraft | null;
+  focusNameOnEdit?: boolean;
   onToggleExpand: () => void;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onDraftChange: (draft: EmployeeEditDraft) => void;
   onSave: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
+  onReactivate: () => void;
+  onDeactivate: () => void;
+  duplicating?: boolean;
+  reactivating?: boolean;
+  deactivating?: boolean;
+  onNameFocusHandled?: () => void;
 }
 
 export function EmployeeCard({
@@ -56,21 +66,42 @@ export function EmployeeCard({
   editing,
   saving,
   draft,
+  focusNameOnEdit = false,
   onToggleExpand,
   onStartEdit,
   onCancelEdit,
   onDraftChange,
   onSave,
   onDelete,
+  onDuplicate,
+  onReactivate,
+  onDeactivate,
+  duplicating = false,
+  reactivating = false,
+  deactivating = false,
+  onNameFocusHandled,
 }: EmployeeCardProps) {
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const viewAvailability = buildAvailabilityFormRows(employee);
   const qualSummary = qualificationSummary(
     shiftTypes,
     employee.qualifications.map((q) => q.shiftTypeId),
   );
+  const canDelete = !employee.hasScheduleHistory;
+
+  useEffect(() => {
+    if (!editing || !focusNameOnEdit || !nameInputRef.current) return;
+    nameInputRef.current.focus();
+    nameInputRef.current.select();
+    onNameFocusHandled?.();
+  }, [editing, focusNameOnEdit, onNameFocusHandled]);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+    <div
+      className={`rounded-xl border border-slate-200 bg-white overflow-hidden ${
+        !employee.isActive ? "opacity-90" : ""
+      }`}
+    >
       <button
         type="button"
         onClick={onToggleExpand}
@@ -78,24 +109,24 @@ export function EmployeeCard({
       >
         <div className="min-w-0">
           <span className="font-medium text-slate-900">{employee.name}</span>
-          <span className="ml-3 text-sm text-slate-500">
+          <span className="ml-3 text-sm text-slate-600">
             {employee.contractHoursPerWeek} h/týden
           </span>
           {!employee.isActive && (
-            <span className="ml-2 text-xs rounded-full bg-slate-100 text-slate-600 px-2 py-0.5">
+            <Badge variant="neutral" className="ml-2">
               Neaktivní
-            </span>
+            </Badge>
           )}
           {employee.isTemporaryHelp && (
-            <span className="ml-2 text-xs rounded-full bg-amber-50 text-amber-700 px-2 py-0.5">
+            <Badge variant="warning" className="ml-2">
               Výpomoc
-            </span>
+            </Badge>
           )}
           {!expanded && (
-            <span className="ml-2 text-xs text-slate-400 truncate">{qualSummary}</span>
+            <span className="ml-2 text-xs text-slate-500 truncate">{qualSummary}</span>
           )}
         </div>
-        <span className="text-slate-400 text-sm shrink-0 ml-2">
+        <span className="text-slate-500 text-sm shrink-0 ml-2">
           {expanded ? "▲" : "▼"}
         </span>
       </button>
@@ -103,32 +134,46 @@ export function EmployeeCard({
       {expanded && !editing && (
         <div className="border-t border-slate-100 px-4 py-4 space-y-4">
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-400 mb-2">
+            <p className="text-xs font-semibold uppercase text-slate-500 mb-2">
               Kvalifikace
             </p>
-            <p className="text-sm text-slate-700">{qualSummary}</p>
+            <p className="text-sm text-slate-800">{qualSummary}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-400 mb-2">
+            <p className="text-xs font-semibold uppercase text-slate-500 mb-2">
               Výchozí týdenní dostupnost
             </p>
             <DefaultAvailabilityReadonly rows={viewAvailability} />
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onStartEdit}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-              Upravit
-            </button>
-            <button
-              type="button"
-              onClick={onDelete}
-              className="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-            >
-              Smazat
-            </button>
+            {!employee.isActive ? (
+              <Button
+                disabled={reactivating}
+                onClick={onReactivate}
+              >
+                {reactivating ? "Obnovuji…" : "Obnovit"}
+              </Button>
+            ) : (
+              <Button onClick={onStartEdit}>Upravit</Button>
+            )}
+            <Button variant="secondary" disabled={duplicating} onClick={onDuplicate}>
+              {duplicating ? "Duplikuji…" : "Duplikovat"}
+            </Button>
+            {employee.isActive && (
+              <Button variant="secondary" disabled={deactivating} onClick={onDeactivate}>
+                {deactivating ? "Deaktivuji…" : "Deaktivovat"}
+              </Button>
+            )}
+            {!employee.isActive && (
+              <Button variant="secondary" onClick={onStartEdit}>
+                Upravit
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="dangerOutline" onClick={onDelete}>
+                Smazat
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -137,17 +182,18 @@ export function EmployeeCard({
         <div className="border-t border-slate-100 px-4 py-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block">
-              <span className="text-sm font-medium text-slate-600">Jméno</span>
-              <input
+              <span className="text-sm font-medium text-slate-700">Jméno</span>
+              <Input
+                ref={nameInputRef}
                 required
                 value={draft.name}
                 onChange={(e) => onDraftChange({ ...draft, name: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1"
               />
             </label>
             <label className="block">
-              <span className="text-sm font-medium text-slate-600">Úvazek (h/týden)</span>
-              <input
+              <span className="text-sm font-medium text-slate-700">Úvazek (h/týden)</span>
+              <Input
                 type="number"
                 min={1}
                 value={draft.contractHoursPerWeek}
@@ -157,25 +203,14 @@ export function EmployeeCard({
                     contractHoursPerWeek: Number(e.target.value),
                   })
                 }
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1"
               />
             </label>
           </div>
 
-          <div className="flex flex-wrap gap-4 text-sm">
+          <div className="flex flex-wrap gap-4 text-sm text-slate-800">
             <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={draft.isActive}
-                onChange={(e) =>
-                  onDraftChange({ ...draft, isActive: e.target.checked })
-                }
-              />
-              Aktivní
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={draft.isTemporaryHelp}
                 onChange={(e) =>
                   onDraftChange({ ...draft, isTemporaryHelp: e.target.checked })
@@ -184,8 +219,7 @@ export function EmployeeCard({
               Výpomoc
             </label>
             <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={draft.useDefaultAvailabilityTemplate}
                 onChange={(e) =>
                   onDraftChange({
@@ -199,7 +233,7 @@ export function EmployeeCard({
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-400 mb-2">
+            <p className="text-xs font-semibold uppercase text-slate-500 mb-2">
               Kvalifikace
             </p>
             <QualificationPicker
@@ -210,7 +244,7 @@ export function EmployeeCard({
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-400 mb-2">
+            <p className="text-xs font-semibold uppercase text-slate-500 mb-2">
               Výchozí týdenní dostupnost
             </p>
             <DefaultAvailabilityEditor
@@ -220,22 +254,12 @@ export function EmployeeCard({
           </div>
 
           <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              type="button"
-              disabled={saving}
-              onClick={onSave}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
+            <Button disabled={saving} onClick={onSave}>
               {saving ? "Ukládám…" : "Uložit"}
-            </button>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={onCancelEdit}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
+            </Button>
+            <Button variant="secondary" disabled={saving} onClick={onCancelEdit}>
               Zrušit
-            </button>
+            </Button>
           </div>
         </div>
       )}

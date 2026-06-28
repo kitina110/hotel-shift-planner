@@ -19,3 +19,14 @@ export function employeeSortCompare(
   if (hoursDiff !== 0) return hoursDiff;
   return a.name.localeCompare(b.name, "cs");
 }
+
+/** Active employees first, then inactive — each group by sortOrder / hours / name. */
+export function employeeListSortCompare(
+  a: Pick<Employee, "isActive" | "sortOrder" | "contractHoursPerWeek" | "name">,
+  b: Pick<Employee, "isActive" | "sortOrder" | "contractHoursPerWeek" | "name">,
+): number {
+  if (a.isActive !== b.isActive) {
+    return a.isActive ? -1 : 1;
+  }
+  return employeeSortCompare(a, b);
+}

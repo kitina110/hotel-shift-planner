@@ -5,6 +5,7 @@ import {
   isZoneGroupFullySelected,
   toggleZoneGroupSelection,
 } from "@/lib/qualification/group-shift-types-by-zone";
+import { Checkbox } from "@/components/ui";
 import type { ShiftType } from "@/types";
 
 interface QualificationPickerProps {
@@ -28,12 +29,11 @@ export function QualificationPicker({
         return (
           <div key={group.zoneId ?? "unassigned"}>
             <div className="flex items-center gap-3 mb-2">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
                 {group.zoneName}
               </p>
-              <label className="inline-flex items-center gap-1.5 text-xs text-slate-600">
-                <input
-                  type="checkbox"
+              <label className="inline-flex items-center gap-1.5 text-xs text-slate-700">
+                <Checkbox
                   checked={zoneFullySelected}
                   onChange={(e) =>
                     onChange(
@@ -50,8 +50,8 @@ export function QualificationPicker({
                   key={shift.id}
                   className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm cursor-pointer ${
                     selected.has(shift.id)
-                      ? "border-indigo-200 bg-indigo-50 text-indigo-800"
-                      : "border-slate-200 bg-white text-slate-600"
+                      ? "border-indigo-300 bg-indigo-50 text-indigo-950"
+                      : "border-slate-300 bg-white text-slate-700"
                   }`}
                 >
                   <input
@@ -73,7 +73,7 @@ export function QualificationPicker({
         );
       })}
       {groups.length === 0 && (
-        <p className="text-sm text-slate-400">Nejsou definovány žádné směny.</p>
+        <p className="text-sm text-slate-500">Nejsou definovány žádné směny.</p>
       )}
     </div>
   );

@@ -17,6 +17,12 @@ export {
 } from "@/lib/employee/can-delete-employee";
 
 export {
+  mergeVisibleReorder,
+  reorderEmployeesByIds,
+  validateReorderPayload,
+} from "@/lib/employee/reorder-employees";
+
+export {
   duplicateEmployee,
   duplicateEmployeeName,
 } from "@/lib/employee/duplicate-employee";

@@ -2,10 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import {
-  buildAvailabilityFormRows,
+  buildDefaultTemplateFormRows,
   DefaultAvailabilityEditor,
   DefaultAvailabilityReadonly,
-  type AvailabilityFormRow,
+  type DefaultTemplateFormRow,
 } from "@/components/employees/DefaultAvailabilityEditor";
 import {
   QualificationPicker,
@@ -21,7 +21,7 @@ export interface EmployeeEditDraft {
   isTemporaryHelp: boolean;
   useDefaultAvailabilityTemplate: boolean;
   shiftTypeIds: string[];
-  availability: AvailabilityFormRow[];
+  defaultTemplate: DefaultTemplateFormRow[];
 }
 
 export function employeeToEditDraft(employee: Employee): EmployeeEditDraft {
@@ -32,7 +32,7 @@ export function employeeToEditDraft(employee: Employee): EmployeeEditDraft {
     isTemporaryHelp: employee.isTemporaryHelp,
     useDefaultAvailabilityTemplate: employee.useDefaultAvailabilityTemplate,
     shiftTypeIds: employee.qualifications.map((q) => q.shiftTypeId),
-    availability: buildAvailabilityFormRows(employee),
+    defaultTemplate: buildDefaultTemplateFormRows(employee),
   };
 }
 
@@ -57,6 +57,8 @@ interface EmployeeCardProps {
   reactivating?: boolean;
   deactivating?: boolean;
   onNameFocusHandled?: () => void;
+  isEditOrderMode?: boolean;
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
 }
 
 export function EmployeeCard({
@@ -80,9 +82,11 @@ export function EmployeeCard({
   reactivating = false,
   deactivating = false,
   onNameFocusHandled,
+  isEditOrderMode = false,
+  dragHandleProps,
 }: EmployeeCardProps) {
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const viewAvailability = buildAvailabilityFormRows(employee);
+  const viewTemplate = buildDefaultTemplateFormRows(employee);
   const qualSummary = qualificationSummary(
     shiftTypes,
     employee.qualifications.map((q) => q.shiftTypeId),
@@ -102,34 +106,47 @@ export function EmployeeCard({
         !employee.isActive ? "opacity-90" : ""
       }`}
     >
-      <button
-        type="button"
-        onClick={onToggleExpand}
-        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50"
-      >
-        <div className="min-w-0">
-          <span className="font-medium text-slate-900">{employee.name}</span>
-          <span className="ml-3 text-sm text-slate-600">
-            {employee.contractHoursPerWeek} h/týden
+      <div className="flex items-center px-4 py-3">
+        {isEditOrderMode && dragHandleProps && (
+          <button
+            type="button"
+            className="mr-2 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 touch-none shrink-0"
+            aria-label="Přesunout zaměstnance"
+            {...dragHandleProps}
+          >
+            ⋮⋮
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          disabled={isEditOrderMode}
+          className="min-w-0 flex-1 flex items-center justify-between text-left hover:bg-slate-50 rounded-md disabled:cursor-default disabled:hover:bg-transparent"
+        >
+          <div className="min-w-0">
+            <span className="font-medium text-slate-900">{employee.name}</span>
+            <span className="ml-3 text-sm text-slate-600">
+              {employee.contractHoursPerWeek} h/týden
+            </span>
+            {!employee.isActive && (
+              <Badge variant="neutral" className="ml-2">
+                Neaktivní
+              </Badge>
+            )}
+            {employee.isTemporaryHelp && (
+              <Badge variant="warning" className="ml-2">
+                Výpomoc
+              </Badge>
+            )}
+            {!expanded && (
+              <span className="ml-2 text-xs text-slate-500 truncate">{qualSummary}</span>
+            )}
+          </div>
+          <span className="text-slate-500 text-sm shrink-0 ml-2">
+            {expanded ? "▲" : "▼"}
           </span>
-          {!employee.isActive && (
-            <Badge variant="neutral" className="ml-2">
-              Neaktivní
-            </Badge>
-          )}
-          {employee.isTemporaryHelp && (
-            <Badge variant="warning" className="ml-2">
-              Výpomoc
-            </Badge>
-          )}
-          {!expanded && (
-            <span className="ml-2 text-xs text-slate-500 truncate">{qualSummary}</span>
-          )}
-        </div>
-        <span className="text-slate-500 text-sm shrink-0 ml-2">
-          {expanded ? "▲" : "▼"}
-        </span>
-      </button>
+        </button>
+      </div>
 
       {expanded && !editing && (
         <div className="border-t border-slate-100 px-4 py-4 space-y-4">
@@ -143,7 +160,7 @@ export function EmployeeCard({
             <p className="text-xs font-semibold uppercase text-slate-500 mb-2">
               Výchozí týdenní dostupnost
             </p>
-            <DefaultAvailabilityReadonly rows={viewAvailability} />
+            <DefaultAvailabilityReadonly rows={viewTemplate} />
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
             {!employee.isActive ? (
@@ -248,8 +265,8 @@ export function EmployeeCard({
               Výchozí týdenní dostupnost
             </p>
             <DefaultAvailabilityEditor
-              rows={draft.availability}
-              onChange={(availability) => onDraftChange({ ...draft, availability })}
+              rows={draft.defaultTemplate}
+              onChange={(defaultTemplate) => onDraftChange({ ...draft, defaultTemplate })}
             />
           </div>
 

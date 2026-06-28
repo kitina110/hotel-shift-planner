@@ -1,25 +1,25 @@
 import type { Employee } from "@/types";
+import { employeeSortCompare } from "@/lib/employee/display";
 
+/** @deprecated E6 — migrate once then remove. */
 export const EMPLOYEE_ORDER_STORAGE_KEY = "schedule-employee-order";
 
-export function defaultEmployeeSort(a: Employee, b: Employee): number {
-  const diff = b.contractHoursPerWeek - a.contractHoursPerWeek;
-  if (diff !== 0) return diff;
-  return a.name.localeCompare(b.name, "cs");
+export function sortEmployeesBySortOrder(employees: Employee[]): Employee[] {
+  return [...employees].sort(employeeSortCompare);
+}
+
+export function employeeIdsInSortOrder(employees: Employee[]): string[] {
+  return sortEmployeesBySortOrder(employees).map((employee) => employee.id);
 }
 
 export function applyEmployeeOrder(
   employees: Employee[],
-  savedOrderIds: string[] | null,
+  orderedIds: string[],
 ): Employee[] {
-  if (!savedOrderIds?.length) {
-    return [...employees].sort(defaultEmployeeSort);
-  }
-
   const byId = new Map(employees.map((employee) => [employee.id, employee]));
   const ordered: Employee[] = [];
 
-  for (const id of savedOrderIds) {
+  for (const id of orderedIds) {
     const employee = byId.get(id);
     if (employee) {
       ordered.push(employee);
@@ -27,11 +27,12 @@ export function applyEmployeeOrder(
     }
   }
 
-  const remaining = [...byId.values()].sort(defaultEmployeeSort);
+  const remaining = sortEmployeesBySortOrder([...byId.values()]);
   return [...ordered, ...remaining];
 }
 
-export function loadEmployeeOrderFromStorage(): string[] | null {
+/** One-time migration from UX Sprint localStorage order to DB sortOrder. */
+export function loadLegacyEmployeeOrderFromStorage(): string[] | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(EMPLOYEE_ORDER_STORAGE_KEY);
@@ -44,6 +45,7 @@ export function loadEmployeeOrderFromStorage(): string[] | null {
   }
 }
 
-export function saveEmployeeOrderToStorage(orderIds: string[]): void {
-  localStorage.setItem(EMPLOYEE_ORDER_STORAGE_KEY, JSON.stringify(orderIds));
+export function clearLegacyEmployeeOrderStorage(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(EMPLOYEE_ORDER_STORAGE_KEY);
 }

@@ -8,7 +8,10 @@ import {
   EMPLOYEE_DEACTIVATED_INSTEAD_MESSAGE,
   resolveEmployeeDelete,
 } from "@/lib/employee/resolve-delete";
-import { writeLegacyAvailabilityWithDualSync } from "@/lib/availability/legacy-sync";
+import {
+  coerceTemplateInput,
+  writeDefaultTemplateWithLegacySync,
+} from "@/lib/availability/default-template-sync";
 import { prisma } from "@/lib/db";
 
 type Params = { params: Promise<{ id: string }> };
@@ -47,6 +50,7 @@ export async function PUT(request: Request, { params }: Params) {
     maxConsecutiveDays,
     shiftTypeIds,
     availability,
+    defaultTemplate,
     isActive,
     isTemporaryHelp,
     useDefaultAvailabilityTemplate,
@@ -78,8 +82,10 @@ export async function PUT(request: Request, { params }: Params) {
     }
   }
 
-  if (availability?.length) {
-    await writeLegacyAvailabilityWithDualSync(prisma, id, availability);
+  const templateRows = coerceTemplateInput(defaultTemplate ?? availability);
+
+  if (templateRows) {
+    await writeDefaultTemplateWithLegacySync(prisma, id, templateRows);
   }
 
   const employee = await prisma.employee.update({

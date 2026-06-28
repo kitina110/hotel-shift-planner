@@ -38,6 +38,15 @@ export {
 } from "@/lib/availability/scheduler-bridge";
 
 export {
+  coerceTemplateInput,
+  defaultTemplateCreateInputFromStatus,
+  defaultTemplateRowsFromEmployee,
+  legacyDaysFromTemplateInput,
+  writeDefaultTemplateWithLegacySync,
+  type DefaultTemplateDayInput,
+} from "@/lib/availability/default-template-sync";
+
+export {
   AVAILABILITY_STATUSES,
   bootstrapWeeklyAvailabilityIfNeeded,
   ensureWeeklyAvailabilityForSchedule,

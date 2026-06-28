@@ -4,7 +4,7 @@ import {
   endTimeFromStartAndDuration,
   formatShiftTimeRange,
 } from "@/lib/shift-time";
-import { applyEmployeeOrder, defaultEmployeeSort } from "@/lib/schedule/employee-order";
+import { applyEmployeeOrder, sortEmployeesBySortOrder } from "@/lib/schedule/employee-order";
 import type { Employee, ScheduleAssignment, ShiftType } from "@/types";
 
 export const STICKY_COL_EMPLOYEE = 180;
@@ -55,7 +55,7 @@ export function buildEmployeeRows(
   const ordered =
     orderIds != null
       ? applyEmployeeOrder(employees, orderIds)
-      : [...employees].sort(defaultEmployeeSort);
+      : sortEmployeesBySortOrder(employees);
 
   return ordered.map((employee) => {
     const empAssignments = assignments.filter((a) => a.employeeId === employee.id);

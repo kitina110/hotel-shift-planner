@@ -41,13 +41,32 @@ export default function SchedulePage() {
     [employees],
   );
 
+  const applySortOrderFromIds = useCallback((orderedIds: string[]) => {
+    setEmployees((prev) => {
+      const sortMap = new Map(orderedIds.map((id, index) => [id, index]));
+      return [...prev]
+        .sort((a, b) => (sortMap.get(a.id) ?? 0) - (sortMap.get(b.id) ?? 0))
+        .map((employee) => ({
+          ...employee,
+          sortOrder: sortMap.get(employee.id) ?? employee.sortOrder,
+        }));
+    });
+  }, []);
+
   const {
-    orderIds,
+    orderedEmployees: orderedPlannableEmployees,
+    visibleIds: orderIds,
     isEditOrderMode,
+    savingOrder,
+    orderError,
     startEditOrder,
     finishEditOrder,
     reorderEmployees,
-  } = useEmployeeRowOrder(plannableEmployees);
+  } = useEmployeeRowOrder({
+    allEmployees: employees,
+    displayEmployees: plannableEmployees,
+    onOrderSaved: applySortOrderFromIds,
+  });
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -229,13 +248,18 @@ export default function SchedulePage() {
             </span>
           )}
 
+          {orderError && (
+            <span className="text-sm text-red-600">{orderError}</span>
+          )}
+
           {isEditOrderMode ? (
             <button
               type="button"
               onClick={finishEditOrder}
-              className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+              disabled={savingOrder}
+              className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-60"
             >
-              ✓ Hotovo — pořadí
+              {savingOrder ? "Ukládám…" : "✓ Hotovo — pořadí"}
             </button>
           ) : (
             <button
@@ -274,7 +298,7 @@ export default function SchedulePage() {
             <ScheduleTable
               weekDays={weekDays}
               schedule={schedule}
-              employees={plannableEmployees}
+              employees={orderedPlannableEmployees}
               shiftTypes={shiftTypes}
               guestCounts={guestCounts}
               onGuestCountChange={handleGuestCountChange}

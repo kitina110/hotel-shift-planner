@@ -5,9 +5,11 @@ import {
   mapEmployeeToApi,
 } from "@/lib/employee/api-response";
 import {
-  defaultTemplateCreateInputFromLegacy,
-  legacyAvailabilityCreateInput,
-} from "@/lib/availability/legacy-sync";
+  coerceTemplateInput,
+  defaultTemplateCreateInputFromStatus,
+  legacyDaysFromTemplateInput,
+} from "@/lib/availability/default-template-sync";
+import { legacyAvailabilityCreateInput } from "@/lib/availability/legacy-sync";
 import { prisma } from "@/lib/db";
 
 export async function GET() {
@@ -26,6 +28,7 @@ export async function POST(request: Request) {
     maxConsecutiveDays = 6,
     shiftTypeIds = [],
     availability = [],
+    defaultTemplate,
   } = body;
 
   const validationError = validateEmployeeProfileInput({
@@ -41,7 +44,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Chybí povinná pole" }, { status: 400 });
   }
 
-  const legacyAvailabilityInput = legacyAvailabilityCreateInput(availability);
+  const templateRows = coerceTemplateInput(defaultTemplate ?? availability);
+  const legacyAvailabilityInput = legacyAvailabilityCreateInput(
+    templateRows ? legacyDaysFromTemplateInput(templateRows) : availability,
+  );
 
   const employee = await prisma.employee.create({
     data: {
@@ -58,7 +64,9 @@ export async function POST(request: Request) {
       qualifications: {
         create: shiftTypeIds.map((shiftTypeId: string) => ({ shiftTypeId })),
       },
-      defaultAvailabilityTemplate: defaultTemplateCreateInputFromLegacy(availability),
+      defaultAvailabilityTemplate: defaultTemplateCreateInputFromStatus(
+        templateRows ?? availability,
+      ),
       availabilities: legacyAvailabilityInput,
     },
     include: employeeApiInclude,

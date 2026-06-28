@@ -1,41 +1,41 @@
 "use client";
 
+import { formatAvailabilityStatusWithEmoji } from "@/lib/availability/status";
 import {
-  formatAvailabilityStatus,
-  formatAvailabilityStatusWithEmoji,
-  legacyAvailabilityToStatus,
-} from "@/lib/availability/status";
-import { DAY_LABELS, type Employee } from "@/types";
+  AVAILABILITY_STATUSES,
+  nextAvailabilityStatus,
+} from "@/lib/availability/weekly-availability";
+import { defaultTemplateRowsFromEmployee } from "@/lib/availability/default-template-sync";
+import { AVAILABILITY_CELL_CLASS_NAMES } from "@/components/availability/availability-cell-styles";
+import { DAY_LABELS, type AvailabilityStatus, type Employee } from "@/types";
 
-export interface AvailabilityFormRow {
+export interface DefaultTemplateFormRow {
   dayOfWeek: number;
-  available: boolean;
-  preferredOff: boolean;
+  status: AvailabilityStatus;
 }
 
-export function buildAvailabilityFormRows(employee: Employee): AvailabilityFormRow[] {
-  return Array.from({ length: 7 }, (_, dayOfWeek) => {
-    const existing = employee.availabilities.find((a) => a.dayOfWeek === dayOfWeek);
-    return {
-      dayOfWeek,
-      available: existing?.available ?? true,
-      preferredOff: existing?.preferredOff ?? false,
-    };
-  });
+export function buildDefaultTemplateFormRows(employee: Employee): DefaultTemplateFormRow[] {
+  return defaultTemplateRowsFromEmployee(employee);
 }
 
 interface DefaultAvailabilityEditorProps {
-  rows: AvailabilityFormRow[];
-  onChange: (rows: AvailabilityFormRow[]) => void;
+  rows: DefaultTemplateFormRow[];
+  onChange: (rows: DefaultTemplateFormRow[]) => void;
+}
+
+function cycleStatus(current: AvailabilityStatus): AvailabilityStatus {
+  const index = AVAILABILITY_STATUSES.indexOf(current);
+  if (index < 0) return nextAvailabilityStatus("AVAILABLE");
+  return AVAILABILITY_STATUSES[(index + 1) % AVAILABILITY_STATUSES.length]!;
 }
 
 export function DefaultAvailabilityEditor({
   rows,
   onChange,
 }: DefaultAvailabilityEditorProps) {
-  function updateRow(dayOfWeek: number, patch: Partial<AvailabilityFormRow>) {
+  function updateStatus(dayOfWeek: number, status: AvailabilityStatus) {
     onChange(
-      rows.map((row) => (row.dayOfWeek === dayOfWeek ? { ...row, ...patch } : row)),
+      rows.map((row) => (row.dayOfWeek === dayOfWeek ? { ...row, status } : row)),
     );
   }
 
@@ -43,6 +43,8 @@ export function DefaultAvailabilityEditor({
     <div className="grid grid-cols-7 gap-2">
       {DAY_LABELS.map((label, dayOfWeek) => {
         const row = rows.find((r) => r.dayOfWeek === dayOfWeek)!;
+        const status = row.status;
+
         return (
           <div
             key={dayOfWeek}
@@ -51,37 +53,11 @@ export function DefaultAvailabilityEditor({
             <div className="text-xs font-medium text-slate-600 mb-1">{label}</div>
             <button
               type="button"
-              onClick={() =>
-                updateRow(dayOfWeek, {
-                  available: !row.available,
-                  preferredOff: row.available ? false : row.preferredOff,
-                })
-              }
-              className={`block w-full rounded px-1 py-0.5 text-[10px] mb-1 border ${
-                row.available
-                  ? "border-emerald-200 bg-emerald-100 text-emerald-950"
-                  : "border-red-200 bg-red-100 text-red-900"
-              }`}
+              onClick={() => updateStatus(dayOfWeek, cycleStatus(status))}
+              className={`block w-full rounded-md px-1 py-1.5 text-[10px] leading-snug border transition-colors cursor-pointer hover:opacity-90 ${AVAILABILITY_CELL_CLASS_NAMES[status]}`}
+              title="Kliknutím změníte stav"
             >
-              {row.available
-                ? formatAvailabilityStatus("AVAILABLE")
-                : formatAvailabilityStatus("UNAVAILABLE")}
-            </button>
-            <button
-              type="button"
-              disabled={!row.available}
-              onClick={() =>
-                updateRow(dayOfWeek, { preferredOff: !row.preferredOff })
-              }
-              className={`block w-full rounded px-1 py-0.5 text-[10px] leading-snug border ${
-                !row.available
-                  ? "border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed"
-                  : row.preferredOff
-                    ? "border-amber-200 bg-amber-100 text-amber-950"
-                    : "border-slate-200 bg-slate-50 text-slate-700"
-              }`}
-            >
-              {formatAvailabilityStatus("PREFERRED_OFF")}
+              {formatAvailabilityStatusWithEmoji(status)}
             </button>
           </div>
         );
@@ -90,12 +66,11 @@ export function DefaultAvailabilityEditor({
   );
 }
 
-export function DefaultAvailabilityReadonly({ rows }: { rows: AvailabilityFormRow[] }) {
+export function DefaultAvailabilityReadonly({ rows }: { rows: DefaultTemplateFormRow[] }) {
   return (
     <div className="grid grid-cols-7 gap-2">
       {DAY_LABELS.map((label, dayOfWeek) => {
         const row = rows.find((r) => r.dayOfWeek === dayOfWeek)!;
-        const status = legacyAvailabilityToStatus(row);
 
         return (
           <div
@@ -103,8 +78,10 @@ export function DefaultAvailabilityReadonly({ rows }: { rows: AvailabilityFormRo
             className="rounded-lg border border-slate-100 bg-slate-50/80 p-2 text-center"
           >
             <div className="text-xs font-medium text-slate-600 mb-1">{label}</div>
-            <div className="text-[10px] text-slate-700 leading-snug">
-              {formatAvailabilityStatusWithEmoji(status)}
+            <div
+              className={`rounded-md px-1 py-1.5 text-[10px] leading-snug border ${AVAILABILITY_CELL_CLASS_NAMES[row.status]}`}
+            >
+              {formatAvailabilityStatusWithEmoji(row.status)}
             </div>
           </div>
         );

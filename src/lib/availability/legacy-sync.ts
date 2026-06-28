@@ -73,7 +73,7 @@ export async function syncDefaultTemplateFromLegacy(
 
 /**
  * Write legacy availability and keep default template in sync.
- * Legacy remains SSOT until E5/E6 cutover.
+ * Legacy remains SSOT until E8; UI writes via writeDefaultTemplateWithLegacySync (E6).
  */
 export async function writeLegacyAvailabilityWithDualSync(
   db: DbClient,

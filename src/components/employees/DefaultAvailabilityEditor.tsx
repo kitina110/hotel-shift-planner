@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  formatAvailabilityStatus,
+  formatAvailabilityStatusWithEmoji,
+  legacyAvailabilityToStatus,
+} from "@/lib/availability/status";
 import { DAY_LABELS, type Employee } from "@/types";
 
 export interface AvailabilityFormRow {
@@ -58,7 +63,9 @@ export function DefaultAvailabilityEditor({
                   : "border-red-200 bg-red-100 text-red-900"
               }`}
             >
-              {row.available ? "Dostupný" : "Nedostupný"}
+              {row.available
+                ? formatAvailabilityStatus("AVAILABLE")
+                : formatAvailabilityStatus("UNAVAILABLE")}
             </button>
             <button
               type="button"
@@ -66,7 +73,7 @@ export function DefaultAvailabilityEditor({
               onClick={() =>
                 updateRow(dayOfWeek, { preferredOff: !row.preferredOff })
               }
-              className={`block w-full rounded px-1 py-0.5 text-[10px] border ${
+              className={`block w-full rounded px-1 py-0.5 text-[10px] leading-snug border ${
                 !row.available
                   ? "border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed"
                   : row.preferredOff
@@ -74,7 +81,7 @@ export function DefaultAvailabilityEditor({
                     : "border-slate-200 bg-slate-50 text-slate-700"
               }`}
             >
-              Preferuje volno
+              {formatAvailabilityStatus("PREFERRED_OFF")}
             </button>
           </div>
         );
@@ -88,9 +95,7 @@ export function DefaultAvailabilityReadonly({ rows }: { rows: AvailabilityFormRo
     <div className="grid grid-cols-7 gap-2">
       {DAY_LABELS.map((label, dayOfWeek) => {
         const row = rows.find((r) => r.dayOfWeek === dayOfWeek)!;
-        let status = "🟢 Dostupný";
-        if (!row.available) status = "🔴 Nedostupný";
-        else if (row.preferredOff) status = "🟡 Preferuje volno";
+        const status = legacyAvailabilityToStatus(row);
 
         return (
           <div
@@ -98,7 +103,9 @@ export function DefaultAvailabilityReadonly({ rows }: { rows: AvailabilityFormRo
             className="rounded-lg border border-slate-100 bg-slate-50/80 p-2 text-center"
           >
             <div className="text-xs font-medium text-slate-600 mb-1">{label}</div>
-            <div className="text-[10px] text-slate-600">{status}</div>
+            <div className="text-[10px] text-slate-700 leading-snug">
+              {formatAvailabilityStatusWithEmoji(status)}
+            </div>
           </div>
         );
       })}

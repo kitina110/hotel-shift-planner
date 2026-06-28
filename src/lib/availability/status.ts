@@ -10,7 +10,7 @@ export interface LegacyAvailabilityDay {
 
 const STATUS_LABELS: Record<AvailabilityStatus, string> = {
   AVAILABLE: "Dostupný",
-  PREFERRED_OFF: "Preferuje volno",
+  PREFERRED_OFF: "Přání volna",
   UNAVAILABLE: "Nedostupný",
   VACATION: "Dovolená",
   SICK: "Nemoc",
@@ -29,6 +29,10 @@ export const WEEK_DAY_COUNT = 7;
 
 export function formatAvailabilityStatus(status: AvailabilityStatus): string {
   return STATUS_LABELS[status];
+}
+
+export function formatAvailabilityStatusWithEmoji(status: AvailabilityStatus): string {
+  return `${availabilityStatusEmoji(status)} ${formatAvailabilityStatus(status)}`;
 }
 
 export function availabilityStatusEmoji(status: AvailabilityStatus): string {

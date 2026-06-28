@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const NAV = [
   { href: "/", label: "Rozpis směn" },
+  { href: "/availability", label: "Dostupnost" },
   { href: "/shift-types", label: "Směny" },
   { href: "/staffing-rules", label: "Obsazenost" },
   { href: "/employees", label: "Zaměstnanci" },

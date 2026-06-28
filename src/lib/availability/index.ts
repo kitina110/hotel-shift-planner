@@ -2,6 +2,7 @@ export {
   availabilityStatusEmoji,
   defaultTemplateRowsFromLegacy,
   formatAvailabilityStatus,
+  formatAvailabilityStatusWithEmoji,
   isHardAvailabilityBlock,
   isSchedulerSoftPenalty,
   legacyAvailabilityToStatus,
@@ -35,3 +36,16 @@ export {
   type SchedulerAvailabilityByDay,
   type SchedulerLegacyAvailability,
 } from "@/lib/availability/scheduler-bridge";
+
+export {
+  AVAILABILITY_STATUSES,
+  bootstrapWeeklyAvailabilityIfNeeded,
+  ensureWeeklyAvailabilityForSchedule,
+  loadWeeklyAvailabilityGrid,
+  nextAvailabilityStatus,
+  syncMissingWeeklyRowsForActiveEmployees,
+  updateWeeklyAvailabilityStatus,
+  weekDayKeys,
+  type WeeklyAvailabilityCell,
+  type WeeklyAvailabilityGrid,
+} from "@/lib/availability/weekly-availability";

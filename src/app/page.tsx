@@ -1,15 +1,16 @@
 "use client";
 
-import { addDays, addWeeks, format, startOfWeek, subWeeks } from "date-fns";
-import { cs } from "date-fns/locale";
+import { addDays, format } from "date-fns";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScheduleDndProvider } from "@/components/ScheduleDndProvider";
+import { WeekNavigator } from "@/components/WeekNavigator";
 import { Button } from "@/components/ui";
 import { CoverageAlertsPanel } from "@/components/schedule/CoverageAlertsPanel";
 import { ScheduleTable } from "@/components/schedule/ScheduleTable";
 import { useEmployeeRowOrder } from "@/hooks/useEmployeeRowOrder";
 import { useScheduleCoverage } from "@/hooks/useScheduleCoverage";
 import { gapsToCoverageAlerts } from "@/lib/coverage/coverage-alerts";
+import { normalizeWeekStart } from "@/lib/date/week-navigation";
 import { isPlannableEmployee } from "@/lib/employee/display";
 import type { CoverageAlert } from "@/lib/coverage/coverage-alerts";
 import type { CoverageZoneWithDetails } from "@/lib/coverage-client";
@@ -24,7 +25,7 @@ function mapAssignmentFromApi(raw: ScheduleAssignment): ScheduleAssignment {
 
 export default function SchedulePage() {
   const [weekStart, setWeekStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 1 }),
+    normalizeWeekStart(new Date()),
   );
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
@@ -105,6 +106,12 @@ export default function SchedulePage() {
       setLoading(false);
     }
   }, [weekStart, weekDays]);
+
+  useEffect(() => {
+    const weekParam = new URLSearchParams(window.location.search).get("week");
+    if (!weekParam) return;
+    setWeekStart(normalizeWeekStart(new Date(weekParam)));
+  }, []);
 
   useEffect(() => {
     loadSchedule();
@@ -199,10 +206,6 @@ export default function SchedulePage() {
       <header className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Týdenní rozpis</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {format(weekStart, "d. MMMM yyyy", { locale: cs })} –{" "}
-            {format(addDays(weekStart, 6), "d. MMMM yyyy", { locale: cs })}
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -247,27 +250,7 @@ export default function SchedulePage() {
 
           <span className="hidden sm:inline w-px h-6 bg-slate-200 mx-1" aria-hidden />
 
-          <button
-            type="button"
-            onClick={() => setWeekStart(subWeeks(weekStart, 1))}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
-          >
-            ← Předchozí
-          </button>
-          <button
-            type="button"
-            onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
-          >
-            Tento týden
-          </button>
-          <button
-            type="button"
-            onClick={() => setWeekStart(addWeeks(weekStart, 1))}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
-          >
-            Další →
-          </button>
+          <WeekNavigator weekStart={weekStart} onWeekChange={setWeekStart} />
         </div>
       </header>
 

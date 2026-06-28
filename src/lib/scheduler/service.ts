@@ -1,14 +1,11 @@
-import {
-  eachDayOfInterval,
-  addDays,
-  startOfWeek,
-  subWeeks,
-} from "date-fns";
+import { startOfWeek, subWeeks } from "date-fns";
 import {
   generateSchedule,
   type HistoricalAssignment,
   type SchedulerInput,
 } from "@/lib/scheduler";
+import { ensureScheduleForWeek } from "@/lib/schedule/ensure-schedule";
+import { ensureWeeklyAvailabilityForSchedule } from "@/lib/availability/weekly-availability";
 import { endTimeFromStartAndDuration } from "@/lib/shift-time";
 import { zoneInclude } from "@/lib/coverage-api";
 import { isPlannableEmployee } from "@/lib/employee";
@@ -25,25 +22,17 @@ export async function loadSchedulerInput(
         where: { id: scheduleId },
         include: { guestForecasts: true, assignments: true },
       })
-    : await prisma.schedule.findUnique({
-        where: { weekStart: normalizedWeek },
-        include: { guestForecasts: true, assignments: true },
-      });
+    : await ensureScheduleForWeek(normalizedWeek);
 
   if (!schedule) {
-    schedule = await prisma.schedule.create({
-      data: {
-        weekStart: normalizedWeek,
-        guestForecasts: {
-          create: eachDayOfInterval({
-            start: normalizedWeek,
-            end: addDays(normalizedWeek, 6),
-          }).map((date) => ({ date, guestCount: 80 })),
-        },
-      },
-      include: { guestForecasts: true, assignments: true },
-    });
+    throw new Error("Schedule not found");
   }
+
+  await ensureWeeklyAvailabilityForSchedule(
+    prisma,
+    schedule.id,
+    schedule.weekStart,
+  );
 
   const [shiftTypes, employees, staffingRules, operationalZones] = await Promise.all([
     prisma.shiftType.findMany(),

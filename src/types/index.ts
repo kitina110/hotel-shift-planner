@@ -65,6 +65,14 @@ export interface EmployeeDefaultAvailability {
   status: AvailabilityStatus;
 }
 
+export interface EmployeeWeeklyAvailability {
+  id: string;
+  scheduleId: string;
+  employeeId: string;
+  date: string;
+  status: AvailabilityStatus;
+}
+
 export interface Availability {
   id: string;
   dayOfWeek: number;

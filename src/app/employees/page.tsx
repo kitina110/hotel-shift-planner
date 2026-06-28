@@ -1,18 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DAY_LABELS, type Employee, type ShiftType } from "@/types";
+import {
+  EmployeeCard,
+  employeeToEditDraft,
+  type EmployeeEditDraft,
+} from "@/components/employees/EmployeeCard";
+import { QualificationPicker } from "@/components/employees/QualificationPicker";
+import type { Employee, ShiftType } from "@/types";
+
+const emptyCreateForm = {
+  name: "",
+  contractHoursPerWeek: 40,
+  shiftTypeIds: [] as string[],
+};
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    name: "",
-    contractHoursPerWeek: 40,
-    maxConsecutiveDays: 6,
-    shiftTypeIds: [] as string[],
-  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<EmployeeEditDraft | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [createForm, setCreateForm] = useState(emptyCreateForm);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     const [empRes, typesRes] = await Promise.all([
@@ -27,86 +39,115 @@ export default function EmployeesPage() {
     load();
   }, []);
 
+  function replaceEmployee(updated: Employee) {
+    setEmployees((prev) =>
+      prev.map((employee) => (employee.id === updated.id ? updated : employee)),
+    );
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    await fetch("/api/employees", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setForm({
-      name: "",
-      contractHoursPerWeek: 40,
-      maxConsecutiveDays: 6,
-      shiftTypeIds: [],
-    });
-    await load();
+    setCreating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Nepodařilo se vytvořit zaměstnance");
+      }
+      const created: Employee = await res.json();
+      setEmployees((prev) => [...prev, created].sort((a, b) => a.sortOrder - b.sortOrder));
+      setCreateForm(emptyCreateForm);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při vytváření");
+    } finally {
+      setCreating(false);
+    }
   }
 
-  async function toggleQualification(employee: Employee, shiftTypeId: string) {
-    const current = employee.qualifications.map((q) => q.shiftTypeId);
-    const next = current.includes(shiftTypeId)
-      ? current.filter((id) => id !== shiftTypeId)
-      : [...current, shiftTypeId];
-
-    await fetch(`/api/employees/${employee.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ shiftTypeIds: next }),
-    });
-    await load();
+  function startEdit(employee: Employee) {
+    setEditingId(employee.id);
+    setEditDraft(employeeToEditDraft(employee));
   }
 
-  async function toggleAvailability(
-    employee: Employee,
-    dayOfWeek: number,
-    field: "available" | "preferredOff",
-  ) {
-    const avail = employee.availabilities.find((a) => a.dayOfWeek === dayOfWeek);
-    const availability = Array.from({ length: 7 }, (_, d) => {
-      const existing = employee.availabilities.find((a) => a.dayOfWeek === d);
-      return {
-        dayOfWeek: d,
-        available: existing?.available ?? true,
-        preferredOff: existing?.preferredOff ?? false,
-      };
-    });
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft(null);
+    setError(null);
+  }
 
-    const idx = availability.findIndex((a) => a.dayOfWeek === dayOfWeek);
-    availability[idx] = {
-      ...availability[idx],
-      [field]: !availability[idx][field],
-    };
-
-    await fetch(`/api/employees/${employee.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ availability }),
-    });
-    await load();
+  async function handleSave(employeeId: string) {
+    if (!editDraft) return;
+    setSavingId(employeeId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/employees/${employeeId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editDraft.name.trim(),
+          contractHoursPerWeek: editDraft.contractHoursPerWeek,
+          isActive: editDraft.isActive,
+          isTemporaryHelp: editDraft.isTemporaryHelp,
+          useDefaultAvailabilityTemplate: editDraft.useDefaultAvailabilityTemplate,
+          shiftTypeIds: editDraft.shiftTypeIds,
+          availability: editDraft.availability,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Nepodařilo se uložit změny");
+      }
+      const updated: Employee = await res.json();
+      replaceEmployee(updated);
+      setEditingId(null);
+      setEditDraft(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při ukládání");
+    } finally {
+      setSavingId(null);
+    }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Smazat zaměstnance?")) return;
-    await fetch(`/api/employees/${id}`, { method: "DELETE" });
-    await load();
+    setError(null);
+    const res = await fetch(`/api/employees/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setError("Nepodařilo se smazat zaměstnance");
+      return;
+    }
+    setEmployees((prev) => prev.filter((employee) => employee.id !== id));
+    if (expandedId === id) setExpandedId(null);
+    if (editingId === id) cancelEdit();
   }
 
   return (
     <div className="p-8 max-w-5xl">
       <h2 className="text-2xl font-bold text-slate-900 mb-6">Zaměstnanci</h2>
 
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <form
         onSubmit={handleCreate}
         className="rounded-xl border border-slate-200 bg-white p-5 mb-8 space-y-4"
       >
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <h3 className="text-sm font-semibold text-slate-800">Přidat zaměstnance</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="block">
             <span className="text-sm font-medium text-slate-600">Jméno</span>
             <input
               required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              value={createForm.name}
+              onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
               className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
             />
           </label>
@@ -115,22 +156,12 @@ export default function EmployeesPage() {
             <input
               type="number"
               min={1}
-              value={form.contractHoursPerWeek}
+              value={createForm.contractHoursPerWeek}
               onChange={(e) =>
-                setForm({ ...form, contractHoursPerWeek: Number(e.target.value) })
-              }
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-slate-600">Max. dní v kuse</span>
-            <input
-              type="number"
-              min={1}
-              max={8}
-              value={form.maxConsecutiveDays}
-              onChange={(e) =>
-                setForm({ ...form, maxConsecutiveDays: Number(e.target.value) })
+                setCreateForm({
+                  ...createForm,
+                  contractHoursPerWeek: Number(e.target.value),
+                })
               }
               className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
             />
@@ -138,34 +169,22 @@ export default function EmployeesPage() {
         </div>
         <div>
           <span className="text-sm font-medium text-slate-600">Kvalifikace</span>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {shiftTypes.map((st) => (
-              <label
-                key={st.id}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={form.shiftTypeIds.includes(st.id)}
-                  onChange={(e) => {
-                    setForm((f) => ({
-                      ...f,
-                      shiftTypeIds: e.target.checked
-                        ? [...f.shiftTypeIds, st.id]
-                        : f.shiftTypeIds.filter((id) => id !== st.id),
-                    }));
-                  }}
-                />
-                {st.name}
-              </label>
-            ))}
+          <div className="mt-2">
+            <QualificationPicker
+              shiftTypes={shiftTypes}
+              selectedIds={createForm.shiftTypeIds}
+              onChange={(shiftTypeIds) =>
+                setCreateForm((form) => ({ ...form, shiftTypeIds }))
+              }
+            />
           </div>
         </div>
         <button
           type="submit"
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          disabled={creating}
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          Přidat zaměstnance
+          {creating ? "Ukládám…" : "Přidat zaměstnance"}
         </button>
       </form>
 
@@ -173,113 +192,29 @@ export default function EmployeesPage() {
 
       <div className="space-y-2">
         {employees.map((emp) => (
-          <div
+          <EmployeeCard
             key={emp.id}
-            className="rounded-xl border border-slate-200 bg-white overflow-hidden"
-          >
-            <button
-              type="button"
-              onClick={() => setExpandedId(expandedId === emp.id ? null : emp.id)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50"
-            >
-              <div>
-                <span className="font-medium text-slate-900">{emp.name}</span>
-                <span className="ml-3 text-sm text-slate-500">
-                  {emp.contractHoursPerWeek}h/týden · max {emp.maxConsecutiveDays} dní
-                </span>
-              </div>
-              <span className="text-slate-400 text-sm">
-                {expandedId === emp.id ? "▲" : "▼"}
-              </span>
-            </button>
-            {expandedId === emp.id && (
-              <div className="border-t border-slate-100 px-4 py-4 space-y-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400 mb-2">
-                    Kvalifikace
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {shiftTypes.map((st) => {
-                      const qualified = emp.qualifications.some(
-                        (q) => q.shiftTypeId === st.id,
-                      );
-                      return (
-                        <button
-                          key={st.id}
-                          type="button"
-                          onClick={() => toggleQualification(emp, st.id)}
-                          className={`rounded-full px-3 py-1 text-xs font-medium ${
-                            qualified
-                              ? "bg-indigo-100 text-indigo-700"
-                              : "bg-slate-100 text-slate-500"
-                          }`}
-                        >
-                          {st.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400 mb-2">
-                    Dostupnost
-                  </p>
-                  <div className="grid grid-cols-7 gap-2">
-                    {DAY_LABELS.map((label, dayOfWeek) => {
-                      const avail = emp.availabilities.find(
-                        (a) => a.dayOfWeek === dayOfWeek,
-                      );
-                      const available = avail?.available ?? true;
-                      const preferredOff = avail?.preferredOff ?? false;
-                      return (
-                        <div
-                          key={dayOfWeek}
-                          className="rounded-lg border border-slate-200 p-2 text-center"
-                        >
-                          <div className="text-xs font-medium text-slate-600 mb-1">
-                            {label}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              toggleAvailability(emp, dayOfWeek, "available")
-                            }
-                            className={`block w-full rounded px-1 py-0.5 text-[10px] mb-1 ${
-                              available
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {available ? "Dostupný" : "Nedostupný"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              toggleAvailability(emp, dayOfWeek, "preferredOff")
-                            }
-                            className={`block w-full rounded px-1 py-0.5 text-[10px] ${
-                              preferredOff
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-slate-50 text-slate-400"
-                            }`}
-                          >
-                            Volno?
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(emp.id)}
-                  className="text-sm text-red-600 hover:underline"
-                >
-                  Smazat zaměstnance
-                </button>
-              </div>
-            )}
-          </div>
+            employee={emp}
+            shiftTypes={shiftTypes}
+            expanded={expandedId === emp.id}
+            editing={editingId === emp.id}
+            saving={savingId === emp.id}
+            draft={editingId === emp.id ? editDraft : null}
+            onToggleExpand={() => {
+              if (expandedId === emp.id) {
+                setExpandedId(null);
+                if (editingId === emp.id) cancelEdit();
+              } else {
+                setExpandedId(emp.id);
+                if (editingId && editingId !== emp.id) cancelEdit();
+              }
+            }}
+            onStartEdit={() => startEdit(emp)}
+            onCancelEdit={cancelEdit}
+            onDraftChange={setEditDraft}
+            onSave={() => handleSave(emp.id)}
+            onDelete={() => handleDelete(emp.id)}
+          />
         ))}
       </div>
     </div>

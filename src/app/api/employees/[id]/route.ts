@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { validateEmployeeProfileInput } from "@/lib/employee/profile-validation";
+import { writeLegacyAvailabilityWithDualSync } from "@/lib/availability/legacy-sync";
 import { prisma } from "@/lib/db";
 
 type Params = { params: Promise<{ id: string }> };
@@ -6,51 +8,58 @@ type Params = { params: Promise<{ id: string }> };
 export async function PUT(request: Request, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
-  const { name, contractHoursPerWeek, maxConsecutiveDays, shiftTypeIds, availability } =
-    body;
+  const {
+    name,
+    contractHoursPerWeek,
+    maxConsecutiveDays,
+    shiftTypeIds,
+    availability,
+    isActive,
+    isTemporaryHelp,
+    useDefaultAvailabilityTemplate,
+  } = body;
 
-  await prisma.employeeQualification.deleteMany({ where: { employeeId: id } });
-  if (shiftTypeIds?.length) {
-    await prisma.employeeQualification.createMany({
-      data: shiftTypeIds.map((shiftTypeId: string) => ({
-        employeeId: id,
-        shiftTypeId,
-      })),
-    });
+  const validationError = validateEmployeeProfileInput({
+    name,
+    contractHoursPerWeek:
+      contractHoursPerWeek != null ? Number(contractHoursPerWeek) : undefined,
+  });
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
+  }
+
+  if (shiftTypeIds !== undefined) {
+    await prisma.employeeQualification.deleteMany({ where: { employeeId: id } });
+    if (Array.isArray(shiftTypeIds) && shiftTypeIds.length > 0) {
+      await prisma.employeeQualification.createMany({
+        data: shiftTypeIds.map((shiftTypeId: string) => ({
+          employeeId: id,
+          shiftTypeId,
+        })),
+      });
+    }
   }
 
   if (availability?.length) {
-    for (const a of availability) {
-      await prisma.availability.upsert({
-        where: {
-          employeeId_dayOfWeek: {
-            employeeId: id,
-            dayOfWeek: a.dayOfWeek,
-          },
-        },
-        create: {
-          employeeId: id,
-          dayOfWeek: a.dayOfWeek,
-          available: a.available,
-          preferredOff: a.preferredOff ?? false,
-        },
-        update: {
-          available: a.available,
-          preferredOff: a.preferredOff ?? false,
-        },
-      });
-    }
+    await writeLegacyAvailabilityWithDualSync(prisma, id, availability);
   }
 
   const employee = await prisma.employee.update({
     where: { id },
     data: {
-      ...(name && { name }),
+      ...(name && { name: String(name).trim() }),
       ...(contractHoursPerWeek != null && {
         contractHoursPerWeek: Number(contractHoursPerWeek),
       }),
       ...(maxConsecutiveDays != null && {
         maxConsecutiveDays: Number(maxConsecutiveDays),
+      }),
+      ...(isActive !== undefined && { isActive: Boolean(isActive) }),
+      ...(isTemporaryHelp !== undefined && {
+        isTemporaryHelp: Boolean(isTemporaryHelp),
+      }),
+      ...(useDefaultAvailabilityTemplate !== undefined && {
+        useDefaultAvailabilityTemplate: Boolean(useDefaultAvailabilityTemplate),
       }),
     },
     include: {

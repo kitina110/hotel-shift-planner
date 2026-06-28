@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import { validateEmployeeProfileInput } from "@/lib/employee/profile-validation";
+import {
+  defaultTemplateCreateInputFromLegacy,
+  legacyAvailabilityCreateInput,
+  writeLegacyAvailabilityWithDualSync,
+} from "@/lib/availability/legacy-sync";
 import { prisma } from "@/lib/db";
 
 export async function GET() {
@@ -23,9 +29,20 @@ export async function POST(request: Request) {
     availability = [],
   } = body;
 
+  const validationError = validateEmployeeProfileInput({
+    name,
+    contractHoursPerWeek: contractHoursPerWeek != null ? Number(contractHoursPerWeek) : undefined,
+    sortOrder: body.sortOrder != null ? Number(body.sortOrder) : undefined,
+  });
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
+  }
+
   if (!name || contractHoursPerWeek == null) {
     return NextResponse.json({ error: "Chybí povinná pole" }, { status: 400 });
   }
+
+  const legacyAvailabilityInput = legacyAvailabilityCreateInput(availability);
 
   const employee = await prisma.employee.create({
     data: {
@@ -42,22 +59,8 @@ export async function POST(request: Request) {
       qualifications: {
         create: shiftTypeIds.map((shiftTypeId: string) => ({ shiftTypeId })),
       },
-      defaultAvailabilityTemplate: {
-        create: Array.from({ length: 7 }, (_, dayOfWeek) => ({
-          dayOfWeek,
-          status: "AVAILABLE" as const,
-        })),
-      },
-      availabilities: {
-        create:
-          availability.length > 0
-            ? availability
-            : Array.from({ length: 7 }, (_, dayOfWeek) => ({
-                dayOfWeek,
-                available: true,
-                preferredOff: false,
-              })),
-      },
+      defaultAvailabilityTemplate: defaultTemplateCreateInputFromLegacy(availability),
+      availabilities: legacyAvailabilityInput,
     },
     include: {
       qualifications: true,
